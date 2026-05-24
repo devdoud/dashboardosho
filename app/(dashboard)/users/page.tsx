@@ -35,11 +35,12 @@ const ROLE_BADGE: Record<string, { label: string; variant: 'default' | 'secondar
 }
 
 export default function UsersPage() {
-  const [allUsers, setAllUsers]   = useState<AuthUser[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [error, setError]         = useState<string | null>(null)
-  const [search, setSearch]       = useState('')
-  const [roleFilter, setRoleFilter] = useState<UserRoleType | 'all' | 'no_role'>('all')
+  const [allUsers, setAllUsers]         = useState<AuthUser[]>([])
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [loading, setLoading]           = useState(true)
+  const [error, setError]               = useState<string | null>(null)
+  const [search, setSearch]             = useState('')
+  const [roleFilter, setRoleFilter]     = useState<UserRoleType | 'all' | 'no_role'>('all')
   const [selectedUser, setSelectedUser] = useState<AuthUser | null>(null)
 
   // form state
@@ -61,7 +62,9 @@ export default function UsersPage() {
         setError(d.error ?? 'Erreur lors du chargement')
         setAllUsers([])
       } else {
-        setAllUsers(await res.json())
+        const json = await res.json()
+        setAllUsers(json.users ?? [])
+        setIsSuperAdmin(json.isSuperAdmin ?? false)
       }
     } catch (e) {
       setError(String(e))
@@ -364,7 +367,7 @@ export default function UsersPage() {
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rôle</p>
                 <div className="flex gap-2 flex-wrap">
-                  {(['customer', 'tailor', 'admin', null] as (UserRoleType | null)[]).map((r) => (
+                  {(['customer', 'tailor', ...(isSuperAdmin ? ['admin'] : []), null] as (UserRoleType | null)[]).map((r) => (
                     <button
                       key={r ?? 'none'}
                       type="button"
@@ -379,6 +382,9 @@ export default function UsersPage() {
                     </button>
                   ))}
                 </div>
+                {!isSuperAdmin && editRole === 'admin' && (
+                  <p className="text-xs text-amber-600">Seul le super admin peut modifier ce rôle.</p>
+                )}
               </div>
 
               {/* Stats (lecture seule) */}

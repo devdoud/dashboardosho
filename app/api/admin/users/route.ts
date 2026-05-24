@@ -9,7 +9,11 @@ function adminClient() {
   )
 }
 
-async function requireAdmin(request: NextRequest) {
+function checkSuperAdmin(email: string | undefined) {
+  return !!email && email === process.env.SUPER_ADMIN_EMAIL
+}
+
+async function requireAdmin() {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -21,18 +25,22 @@ async function requireAdmin(request: NextRequest) {
 
 /**
  * GET /api/admin/users
+ * Retourne { users, isSuperAdmin }
+ * Le super admin voit tout. Les autres admins ne voient pas le super admin.
  */
 export async function GET(request: NextRequest) {
-  const admin = await requireAdmin(request)
+  const admin = await requireAdmin(request as never)
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const currentIsSuperAdmin = checkSuperAdmin(admin.email)
   const sa = adminClient()
+
   const { data: authData, error } = await sa.auth.admin.listUsers({ perPage: 1000 })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const authUsers = authData.users
   const ids = authUsers.map((u) => u.id)
-  if (ids.length === 0) return NextResponse.json([])
+  if (ids.length === 0) return NextResponse.json({ users: [], isSuperAdmin: currentIsSuperAdmin })
 
   const [rolesRes, addressesRes, ordersRes] = await Promise.all([
     sa.from('user_roles').select('user_id, role').in('user_id', ids),
@@ -53,7 +61,7 @@ export async function GET(request: NextRequest) {
     if (!lastOrderMap[o.user_id]) lastOrderMap[o.user_id] = o.created_at
   }
 
-  const result = authUsers.map((u) => ({
+  let users = authUsers.map((u) => ({
     id:           u.id,
     email:        u.email ?? '',
     created_at:   u.created_at,
@@ -66,17 +74,23 @@ export async function GET(request: NextRequest) {
     last_order:   lastOrderMap[u.id] ?? null,
   }))
 
-  return NextResponse.json(result)
+  // Les admins normaux ne voient pas le super admin
+  if (!currentIsSuperAdmin) {
+    users = users.filter((u) => u.email !== process.env.SUPER_ADMIN_EMAIL)
+  }
+
+  return NextResponse.json({ users, isSuperAdmin: currentIsSuperAdmin })
 }
 
 /**
  * PATCH /api/admin/users
- * Body: { userId, role?, full_name?, phone?, city? }
+ * Seul le super admin peut : promouvoir en admin, modifier un autre admin
  */
 export async function PATCH(request: NextRequest) {
-  const admin = await requireAdmin(request)
+  const admin = await requireAdmin(request as never)
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const currentIsSuperAdmin = checkSuperAdmin(admin.email)
   const body = await request.json()
   const { userId, role, full_name, phone, city } = body as {
     userId: string
@@ -89,6 +103,21 @@ export async function PATCH(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
   const sa = adminClient()
+
+  // Récupérer l'email de la cible
+  const { data: targetAuth } = await sa.auth.admin.getUserById(userId)
+  const targetEmail = targetAuth?.user?.email ?? ''
+
+  // Personne ne peut modifier le super admin, sauf lui-même
+  if (targetEmail === process.env.SUPER_ADMIN_EMAIL && !currentIsSuperAdmin) {
+    return NextResponse.json({ error: 'Vous ne pouvez pas modifier ce compte.' }, { status: 403 })
+  }
+
+  // Seul le super admin peut promouvoir/rétrograder un admin
+  if ('role' in body && role === 'admin' && !currentIsSuperAdmin) {
+    return NextResponse.json({ error: 'Seul le super admin peut créer des administrateurs.' }, { status: 403 })
+  }
+
   const errors: string[] = []
 
   // ── Mise à jour du rôle ────────────────────────────────────────────────────
