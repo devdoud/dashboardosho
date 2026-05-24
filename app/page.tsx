@@ -352,7 +352,7 @@ export default function LandingPage() {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <MapPin size={15} color="#fff" strokeWidth={1.5} style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: '#fff', fontWeight: 400 }}>New York, United States</span>
+                  <span style={{ fontSize: 13, color: '#fff', fontWeight: 400 }}>Sioux City, Iowa, United States</span>
                 </div>
               </div>
             </div>
