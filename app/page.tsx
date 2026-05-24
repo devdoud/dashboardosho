@@ -472,7 +472,7 @@ function DlBtn({ href, icon }: { href: string; icon: 'apple' | 'play' }) {
 }
 
 
-function PhoneFrame({ scale = 1, shadow = '0 32px 80px rgba(0,0,0,0.22)', src = '/app-screenshot.png', reflection = false }: { scale?: number; shadow?: string; src?: string; reflection?: boolean }) {
+function PhoneFrame({ scale = 1, shadow = '0 32px 80px rgba(0,0,0,0.22)', src = '/app-screenshot.png', reflection = false, eager = false }: { scale?: number; shadow?: string; src?: string; reflection?: boolean; eager?: boolean }) {
   const w      = Math.round(238 * scale)
   const frame  = Math.round(256 * scale)
   const pad    = Math.round(11 * scale)
@@ -491,7 +491,7 @@ function PhoneFrame({ scale = 1, shadow = '0 32px 80px rgba(0,0,0,0.22)', src = 
       <div style={{ position: 'absolute', right:-2, top: Math.round(108 * scale), width: 2, height: Math.round(54 * scale), background: '#2a2a2a', borderRadius: 2 }} />
       {/* Écran */}
       <div style={{ borderRadius: brInner, overflow: 'hidden', lineHeight: 0, position: 'relative' }}>
-        <Image src={src} alt="App Osho" width={w} height={Math.round(516 * scale)} style={{ width: '100%', height: 'auto', display: 'block' }} priority />
+        <Image src={src} alt="App Osho" width={w} height={Math.round(516 * scale)} style={{ width: '100%', height: 'auto', display: 'block' }} priority={eager} loading={eager ? 'eager' : 'lazy'} />
         {/* Reflet écran */}
         {reflection && (
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 40%, transparent 65%)', pointerEvents: 'none', borderRadius: brInner }} />
@@ -553,7 +553,7 @@ function PhoneMockup() {
 
       {/* ── Téléphone principal — devant ── */}
       <div style={{ position: 'absolute', top: 0, right: 0, zIndex: 2 }}>
-        <PhoneFrame scale={0.97} reflection />
+        <PhoneFrame scale={0.97} reflection eager />
       </div>
 
       {/* Badge haut-gauche — Live tracking */}
