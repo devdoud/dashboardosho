@@ -75,20 +75,21 @@ async function getStats() {
   }))
 
   // Monthly revenue for chart (last 6 months)
-  const months: { month: string; revenue: number }[] = []
+  type MonthEntry = { month: string; revenue: number; start: string; end: string }
+  const months: MonthEntry[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
     const end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString()
-    const label = d.toLocaleString('fr-FR', { month: 'short' })
-    months.push({ month: label, revenue: 0, _start: start, _end: end } as typeof months[0] & { _start: string; _end: string })
+    const month = d.toLocaleString('fr-FR', { month: 'short' })
+    months.push({ month, revenue: 0, start, end })
   }
 
   const { data: allPaidOrders } = await supabase
     .from('orders')
     .select('total_amount, paid_at')
     .eq('payment_status', 'paid')
-    .gte('paid_at', months[0]._start ?? '')
+    .gte('paid_at', months[0]?.start ?? '')
     .order('paid_at', { ascending: true })
 
   for (const order of allPaidOrders ?? []) {

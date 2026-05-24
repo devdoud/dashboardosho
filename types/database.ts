@@ -1,20 +1,25 @@
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[]
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
-      orders: { Row: Order; Insert: OrderInsert; Update: OrderUpdate }
-      order_items: { Row: OrderItem; Insert: OrderItemInsert; Update: OrderItemUpdate }
-      order_assignments: { Row: OrderAssignment; Insert: OrderAssignmentInsert; Update: OrderAssignmentUpdate }
-      payment_attempts: { Row: PaymentAttempt; Insert: PaymentAttemptInsert; Update: PaymentAttemptUpdate }
-      products: { Row: Product; Insert: ProductInsert; Update: ProductUpdate }
-      categories: { Row: Category; Insert: CategoryInsert; Update: CategoryUpdate }
-      addresses: { Row: Address; Insert: AddressInsert; Update: AddressUpdate }
-      measurement_profiles: { Row: MeasurementProfile; Insert: MeasurementProfileInsert; Update: MeasurementProfileUpdate }
-      measurement_tutorials: { Row: MeasurementTutorial; Insert: MeasurementTutorialInsert; Update: MeasurementTutorialUpdate }
-      tailor_reviews: { Row: TailorReview; Insert: TailorReviewInsert; Update: TailorReviewUpdate }
-      user_roles: { Row: UserRole; Insert: UserRoleInsert; Update: UserRoleUpdate }
+      orders: { Row: Order; Insert: OrderInsert; Update: OrderUpdate; Relationships: [] }
+      order_items: { Row: OrderItem; Insert: OrderItemInsert; Update: OrderItemUpdate; Relationships: [] }
+      order_assignments: { Row: OrderAssignment; Insert: OrderAssignmentInsert; Update: OrderAssignmentUpdate; Relationships: [] }
+      payment_attempts: { Row: PaymentAttempt; Insert: PaymentAttemptInsert; Update: PaymentAttemptUpdate; Relationships: [] }
+      products: { Row: Product; Insert: ProductInsert; Update: ProductUpdate; Relationships: [] }
+      categories: { Row: Category; Insert: CategoryInsert; Update: CategoryUpdate; Relationships: [] }
+      addresses: { Row: Address; Insert: AddressInsert; Update: AddressUpdate; Relationships: [] }
+      measurement_profiles: { Row: MeasurementProfile; Insert: MeasurementProfileInsert; Update: MeasurementProfileUpdate; Relationships: [] }
+      measurement_tutorials: { Row: MeasurementTutorial; Insert: MeasurementTutorialInsert; Update: MeasurementTutorialUpdate; Relationships: [] }
+      tailor_reviews: { Row: TailorReview; Insert: TailorReviewInsert; Update: TailorReviewUpdate; Relationships: [] }
+      user_roles: { Row: UserRole; Insert: UserRoleInsert; Update: UserRoleUpdate; Relationships: [] }
+      fcm_tokens: { Row: FcmToken; Insert: FcmTokenInsert; Update: FcmTokenUpdate; Relationships: [] }
     }
+    Views: { [_ in never]: never }
+    Functions: { [_ in never]: never }
+    Enums: { [_ in never]: never }
+    CompositeTypes: { [_ in never]: never }
   }
 }
 
@@ -42,6 +47,7 @@ export interface Order {
   payment_status: PaymentStatus
   payment_method: PaymentMethod | null
   shipping_address: ShippingAddress | null
+  customer_note: string | null   // Note laissée par le client à la commande
   paid_at: string | null
   stripe_payment_intent_id: string | null
   primary_tailor_id: string | null
@@ -138,7 +144,7 @@ export interface FabricOption {
 
 export interface Product {
   id: string
-  title: string
+  name: string
   price: number
   thumbnail: string | null
   images: string[] | null
@@ -278,10 +284,37 @@ export interface UserRole {
 export type UserRoleInsert = Omit<UserRole, 'id' | 'created_at'>
 export type UserRoleUpdate = Partial<UserRoleInsert>
 
+// ─── FCM Tokens ───────────────────────────────────────────────────────────────
+
+export type FcmPlatform = 'android' | 'ios'
+
+export interface FcmToken {
+  id: string
+  user_id: string
+  token: string
+  platform: FcmPlatform | null
+  created_at: string
+  updated_at: string
+}
+
+export type FcmTokenInsert = Omit<FcmToken, 'id' | 'created_at' | 'updated_at'>
+export type FcmTokenUpdate = Partial<FcmTokenInsert>
+
+// ─── Notification payload ─────────────────────────────────────────────────────
+
+export interface NotificationPayload {
+  user_id: string
+  title: string
+  body: string
+  data?: Record<string, string>
+}
+
+export type NotificationTarget = 'user' | 'all_customers' | 'all_tailors' | 'all_users'
+
 // ─── Extended types with joins ────────────────────────────────────────────────
 
 export interface OrderWithItems extends Order {
-  order_items: (OrderItem & { product: Pick<Product, 'id' | 'title' | 'thumbnail' | 'sku'> | null })[]
+  order_items: (OrderItem & { product: Pick<Product, 'id' | 'name' | 'thumbnail' | 'sku'> | null })[]
   user?: { id: string; email?: string }
 }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { awaitQuery } from '@/lib/supabase/query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -57,7 +58,7 @@ export default function ReviewsPage() {
 
     if (ratingFilter !== 'all') query = query.eq('rating', parseInt(ratingFilter))
 
-    const { data, count } = await query
+    const { data, count } = await awaitQuery<TailorReview>(query)
     const reviewData = data ?? []
 
     // Enrich with names from addresses
@@ -287,7 +288,7 @@ export default function ReviewsPage() {
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedReview} onOpenChange={(open) => !open && setSelectedReview(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Détails de l&apos;avis</DialogTitle>
           </DialogHeader>
@@ -344,7 +345,7 @@ export default function ReviewsPage() {
 
       {/* Delete confirm */}
       <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Supprimer l&apos;avis ?</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Cette action est irréversible.</p>
           <div className="flex gap-2 justify-end">

@@ -2,16 +2,26 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { awaitQuery } from '@/lib/supabase/query'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
-import type { Order, OrderStatus, PaymentStatus } from '@/types/database'
-import { Search, Eye, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { formatCurrency, formatDateTime, getLabel } from '@/lib/utils'
+import type { Order, OrderStatus, PaymentStatus, OrderAssignment, AssignmentStatus } from '@/types/database'
+import {
+  Search, Eye, RefreshCw, ChevronLeft, ChevronRight,
+  Scissors, CheckCircle, XCircle, Clock, AlertCircle, Loader2, Package, MessageSquare,
+} from 'lucide-react'
+import Image from 'next/image'
+
+// ─── Constantes ───────────────────────────────────────────────────────────────
 
 const ORDER_STATUSES: { value: OrderStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'Tous les statuts' },
@@ -31,21 +41,59 @@ const PAYMENT_STATUSES: { value: PaymentStatus | 'all'; label: string }[] = [
 ]
 
 const ORDER_STATUS_BADGE: Record<OrderStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info' }> = {
-  pending: { label: 'En attente', variant: 'warning' },
-  processing: { label: 'En cours', variant: 'info' },
-  shipped: { label: 'Expédié', variant: 'secondary' },
-  delivered: { label: 'Livré', variant: 'success' },
-  cancelled: { label: 'Annulé', variant: 'destructive' },
+  pending:    { label: 'En attente', variant: 'warning' },
+  processing: { label: 'En cours',   variant: 'info' },
+  shipped:    { label: 'Expédié',    variant: 'secondary' },
+  delivered:  { label: 'Livré',      variant: 'success' },
+  cancelled:  { label: 'Annulé',     variant: 'destructive' },
 }
 
 const PAYMENT_STATUS_BADGE: Record<PaymentStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info' }> = {
-  pending: { label: 'En attente', variant: 'warning' },
-  paid: { label: 'Payé', variant: 'success' },
-  failed: { label: 'Échoué', variant: 'destructive' },
-  refunded: { label: 'Remboursé', variant: 'secondary' },
+  pending:  { label: 'En attente', variant: 'warning' },
+  paid:     { label: 'Payé',       variant: 'success' },
+  failed:   { label: 'Échoué',     variant: 'destructive' },
+  refunded: { label: 'Remboursé',  variant: 'secondary' },
+}
+
+const ASSIGNMENT_STATUS_BADGE: Record<AssignmentStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info'; icon: React.ElementType }> = {
+  pending:    { label: 'En attente',  variant: 'warning',     icon: Clock },
+  accepted:   { label: 'Accepté',     variant: 'info',        icon: CheckCircle },
+  in_progress:{ label: 'En cours',    variant: 'info',        icon: Scissors },
+  completed:  { label: 'Terminé',     variant: 'success',     icon: CheckCircle },
+  rejected:   { label: 'Refusé',      variant: 'destructive', icon: XCircle },
+  cancelled:  { label: 'Annulé',      variant: 'outline',     icon: XCircle },
 }
 
 const PAGE_SIZE = 20
+
+// ─── Types enrichis ───────────────────────────────────────────────────────────
+
+interface AssignmentWithTailor extends OrderAssignment {
+  tailor_name?: string
+}
+
+interface TailorOption {
+  id: string
+  name: string
+}
+
+interface OrderItemWithProduct {
+  id: string
+  order_id: string
+  product_id: string
+  quantity: number
+  unit_price: number
+  total_price: number
+  measurements_snapshot: Record<string, unknown> | null
+  product: {
+    id: string
+    title: unknown
+    thumbnail: string | null
+    sku: string
+  } | null
+}
+
+// ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function OrdersPage() {
   const supabase = createClient()
@@ -59,6 +107,20 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
+  // Order items state
+  const [orderItems, setOrderItems] = useState<OrderItemWithProduct[]>([])
+  const [loadingItems, setLoadingItems] = useState(false)
+
+  // Assignment state
+  const [assignments, setAssignments] = useState<AssignmentWithTailor[]>([])
+  const [tailors, setTailors] = useState<TailorOption[]>([])
+  const [selectedTailor, setSelectedTailor] = useState('')
+  const [assignmentNotes, setAssignmentNotes] = useState('')
+  const [assigning, setAssigning] = useState(false)
+  const [loadingAssignments, setLoadingAssignments] = useState(false)
+
+  // ─── Fetch orders ────────────────────────────────────────────────────────────
+
   const fetchOrders = useCallback(async () => {
     setLoading(true)
     let query = supabase
@@ -71,13 +133,97 @@ export default function OrdersPage() {
     if (paymentFilter !== 'all') query = query.eq('payment_status', paymentFilter)
     if (search) query = query.ilike('id', `%${search}%`)
 
-    const { data, count } = await query
+    const { data, count } = await awaitQuery<Order>(query)
     setOrders(data ?? [])
     setTotal(count ?? 0)
     setLoading(false)
   }, [page, statusFilter, paymentFilter, search, supabase])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
+
+  // ─── Fetch tailors ────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    async function loadTailors() {
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'tailor')
+
+      if (!roles || roles.length === 0) return
+
+      const ids = roles.map((r) => r.user_id)
+      const { data: addresses } = await supabase
+        .from('addresses')
+        .select('user_id, full_name')
+        .in('user_id', ids)
+        .eq('is_default', true)
+
+      const nameMap: Record<string, string> = {}
+      for (const a of addresses ?? []) nameMap[a.user_id] = a.full_name
+
+      setTailors(ids.map((id) => ({
+        id,
+        name: nameMap[id] ?? `Tailleur ${id.slice(0, 6)}`,
+      })))
+    }
+    loadTailors()
+  }, [supabase])
+
+  // ─── Fetch assignments for selected order ────────────────────────────────────
+
+  const fetchAssignments = useCallback(async (orderId: string) => {
+    setLoadingAssignments(true)
+    const { data } = await supabase
+      .from('order_assignments')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('assigned_at', { ascending: false })
+
+    const list = (data ?? []) as OrderAssignment[]
+
+    // Enrich with tailor names
+    const tailorIds = [...new Set(list.map((a) => a.tailor_id))]
+    const nameMap: Record<string, string> = {}
+    if (tailorIds.length > 0) {
+      const { data: addresses } = await supabase
+        .from('addresses')
+        .select('user_id, full_name')
+        .in('user_id', tailorIds)
+        .eq('is_default', true)
+      for (const a of addresses ?? []) nameMap[a.user_id] = a.full_name
+    }
+
+    setAssignments(list.map((a) => ({
+      ...a,
+      tailor_name: nameMap[a.tailor_id] ?? `Tailleur ${a.tailor_id.slice(0, 6)}`,
+    })))
+    setLoadingAssignments(false)
+  }, [supabase])
+
+  // ─── Fetch order items ────────────────────────────────────────────────────────
+
+  const fetchOrderItems = useCallback(async (orderId: string) => {
+    setLoadingItems(true)
+    const { data } = await supabase
+      .from('order_items')
+      .select('*, product:products(id, title, thumbnail, sku)')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: true })
+    setOrderItems((data as OrderItemWithProduct[]) ?? [])
+    setLoadingItems(false)
+  }, [supabase])
+
+  function openOrderDetail(order: Order) {
+    setSelectedOrder(order)
+    setSelectedTailor('')
+    setAssignmentNotes('')
+    setOrderItems([])
+    fetchAssignments(order.id)
+    fetchOrderItems(order.id)
+  }
+
+  // ─── Actions ──────────────────────────────────────────────────────────────────
 
   async function updateOrderStatus(orderId: string, status: OrderStatus) {
     setUpdatingId(orderId)
@@ -89,7 +235,54 @@ export default function OrdersPage() {
     setUpdatingId(null)
   }
 
+  async function assignTailor() {
+    if (!selectedOrder || !selectedTailor) return
+    setAssigning(true)
+
+    // Annuler les assignments actifs précédents
+    await supabase
+      .from('order_assignments')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('order_id', selectedOrder.id)
+      .in('status', ['pending', 'accepted', 'in_progress'])
+
+    // Créer le nouvel assignment
+    await supabase.from('order_assignments').insert({
+      order_id: selectedOrder.id,
+      tailor_id: selectedTailor,
+      status: 'pending',
+      assigned_at: new Date().toISOString(),
+      notes: assignmentNotes || null,
+    })
+
+    // Passer la commande en "processing"
+    if (selectedOrder.status === 'pending') {
+      await supabase
+        .from('orders')
+        .update({ status: 'processing', primary_tailor_id: selectedTailor, updated_at: new Date().toISOString() })
+        .eq('id', selectedOrder.id)
+      setSelectedOrder((prev) => prev ? { ...prev, status: 'processing' } : null)
+    }
+
+    setSelectedTailor('')
+    setAssignmentNotes('')
+    await fetchAssignments(selectedOrder.id)
+    await fetchOrders()
+    setAssigning(false)
+  }
+
+  async function cancelAssignment(assignmentId: string) {
+    await supabase
+      .from('order_assignments')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', assignmentId)
+    if (selectedOrder) await fetchAssignments(selectedOrder.id)
+  }
+
+  // ─── Rendu ────────────────────────────────────────────────────────────────────
+
   const totalPages = Math.ceil(total / PAGE_SIZE)
+  const activeAssignment = assignments.find((a) => ['pending', 'accepted', 'in_progress'].includes(a.status))
 
   return (
     <div className="space-y-6">
@@ -103,7 +296,7 @@ export default function OrdersPage() {
         </Button>
       </div>
 
-      {/* Filters */}
+      {/* Filtres */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -115,27 +308,20 @@ export default function OrdersPage() {
           />
         </div>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as OrderStatus | 'all'); setPage(0) }}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {ORDER_STATUSES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-            ))}
+            {ORDER_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={paymentFilter} onValueChange={(v) => { setPaymentFilter(v as PaymentStatus | 'all'); setPage(0) }}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {PAYMENT_STATUSES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-            ))}
+            {PAYMENT_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
 
+      {/* Tableau */}
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -146,7 +332,9 @@ export default function OrdersPage() {
                 <TableHead>Statut</TableHead>
                 <TableHead>Paiement</TableHead>
                 <TableHead>Méthode</TableHead>
+                <TableHead>Tailleur</TableHead>
                 <TableHead className="text-right">Montant</TableHead>
+                <TableHead className="w-8" />
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -154,16 +342,14 @@ export default function OrdersPage() {
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 7 }).map((_, j) => (
-                      <TableCell key={j}>
-                        <div className="h-4 bg-muted animate-pulse rounded" />
-                      </TableCell>
+                    {Array.from({ length: 8 }).map((_, j) => (
+                      <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : orders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                     Aucune commande trouvée
                   </TableCell>
                 </TableRow>
@@ -171,6 +357,9 @@ export default function OrdersPage() {
                 orders.map((order) => {
                   const os = ORDER_STATUS_BADGE[order.status]
                   const ps = PAYMENT_STATUS_BADGE[order.payment_status]
+                  const tailorName = order.primary_tailor_id
+                    ? tailors.find((t) => t.id === order.primary_tailor_id)?.name
+                    : null
                   return (
                     <TableRow key={order.id}>
                       <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}…</TableCell>
@@ -178,9 +367,26 @@ export default function OrdersPage() {
                       <TableCell><Badge variant={os.variant}>{os.label}</Badge></TableCell>
                       <TableCell><Badge variant={ps.variant}>{ps.label}</Badge></TableCell>
                       <TableCell className="text-xs capitalize">{order.payment_method ?? '—'}</TableCell>
+                      <TableCell>
+                        {tailorName ? (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Scissors className="h-3 w-3 text-muted-foreground" />
+                            <span>{tailorName}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">Non assigné</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(order.total_amount)}</TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => setSelectedOrder(order)}>
+                        {order.customer_note && (
+                          <span title={order.customer_note}>
+                            <MessageSquare className="h-3.5 w-3.5 text-amber-500" />
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" onClick={() => openOrderDetail(order)}>
                           <Eye className="h-4 w-4" />
                         </Button>
                       </TableCell>
@@ -196,9 +402,7 @@ export default function OrdersPage() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Page {page + 1} sur {totalPages} ({total} résultats)
-          </p>
+          <p className="text-sm text-muted-foreground">Page {page + 1} / {totalPages} ({total} résultats)</p>
           <div className="flex gap-2">
             <Button variant="outline" size="icon" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
               <ChevronLeft className="h-4 w-4" />
@@ -210,25 +414,30 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* Order Detail Dialog */}
+      {/* ── Dialog détail commande ── */}
       <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
-            <DialogTitle>Commande #{selectedOrder?.id.slice(0, 8)}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              Commande
+              <span className="font-mono text-sm text-muted-foreground">#{selectedOrder?.id.slice(0, 8)}</span>
+            </DialogTitle>
           </DialogHeader>
+
           {selectedOrder && (
-            <div className="space-y-6">
-              {/* Statut + Actions */}
+            <div className="space-y-5">
+
+              {/* Statut commande */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Statut commande</p>
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-xs text-muted-foreground mb-1.5">Statut commande</p>
+                  <div className="flex flex-wrap gap-1.5">
                     {(['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as OrderStatus[]).map((s) => (
                       <button
                         key={s}
                         onClick={() => updateOrderStatus(selectedOrder.id, s)}
                         disabled={updatingId === selectedOrder.id}
-                        className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
+                        className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
                           selectedOrder.status === s
                             ? 'bg-primary text-primary-foreground border-primary'
                             : 'bg-background hover:bg-muted border-border'
@@ -240,12 +449,231 @@ export default function OrdersPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Statut paiement</p>
+                  <p className="text-xs text-muted-foreground mb-1.5">Paiement</p>
                   <Badge variant={PAYMENT_STATUS_BADGE[selectedOrder.payment_status].variant}>
                     {PAYMENT_STATUS_BADGE[selectedOrder.payment_status].label}
                   </Badge>
                 </div>
               </div>
+
+              {/* ── Note du client ── */}
+              {selectedOrder.customer_note && (
+                <div className="flex gap-3 rounded-lg border-l-4 border-amber-400 bg-amber-50 px-4 py-3">
+                  <MessageSquare className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-amber-700 mb-1 uppercase tracking-wide">Note du client</p>
+                    <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">{selectedOrder.customer_note}</p>
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+
+              {/* ── Articles commandés ── */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-primary" />
+                  <h3 className="font-semibold text-sm">
+                    Articles commandés
+                    {orderItems.length > 0 && (
+                      <span className="ml-1.5 text-muted-foreground font-normal">({orderItems.length})</span>
+                    )}
+                  </h3>
+                </div>
+
+                {loadingItems ? (
+                  <div className="space-y-2">
+                    {[1, 2].map((i) => (
+                      <div key={i} className="h-20 bg-muted animate-pulse rounded-lg" />
+                    ))}
+                  </div>
+                ) : orderItems.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">Aucun article trouvé.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {orderItems.map((item) => (
+                      <div key={item.id} className="rounded-xl border overflow-hidden">
+                        {/* En-tête article */}
+                        <div className="flex items-center gap-3 p-3 bg-muted/20">
+                          {item.product?.thumbnail ? (
+                            <div className="relative h-14 w-14 shrink-0 rounded-lg overflow-hidden border">
+                              <Image
+                                src={item.product.thumbnail}
+                                alt={getLabel(item.product.name, 'Produit')}
+                                fill
+                                className="object-cover"
+                                sizes="56px"
+                              />
+                            </div>
+                          ) : (
+                            <div className="h-14 w-14 shrink-0 rounded-lg bg-muted flex items-center justify-center">
+                              <Package className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">
+                              {getLabel(item.product?.name, 'Produit supprimé')}
+                            </p>
+                            {item.product?.sku && (
+                              <p className="text-xs font-mono text-muted-foreground">{item.product.sku}</p>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-semibold">{formatCurrency(item.total_price)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.quantity} × {formatCurrency(item.unit_price)}
+                            </p>
+                          </div>
+                        </div>
+
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* ── Section Assignation ── */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Scissors className="h-4 w-4 text-primary" />
+                  <h3 className="font-semibold text-sm">Assignation tailleur</h3>
+                </div>
+
+                {/* Assignment actif */}
+                {loadingAssignments ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Chargement…
+                  </div>
+                ) : activeAssignment ? (
+                  <div className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Scissors className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{activeAssignment.tailor_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Assigné le {formatDateTime(activeAssignment.assigned_at)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const s = ASSIGNMENT_STATUS_BADGE[activeAssignment.status]
+                          const Icon = s.icon
+                          return (
+                            <Badge variant={s.variant} className="flex items-center gap-1">
+                              <Icon className="h-3 w-3" />
+                              {s.label}
+                            </Badge>
+                          )
+                        })()}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive h-7 px-2 text-xs"
+                          onClick={() => cancelAssignment(activeAssignment.id)}
+                        >
+                          Annuler
+                        </Button>
+                      </div>
+                    </div>
+                    {activeAssignment.notes && (
+                      <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
+                        {activeAssignment.notes}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground rounded-lg border border-dashed p-3">
+                    <AlertCircle className="h-4 w-4" />
+                    Aucun tailleur assigné à cette commande
+                  </div>
+                )}
+
+                {/* Formulaire d'assignation */}
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {activeAssignment ? 'Réassigner à un autre tailleur' : 'Assigner un tailleur'}
+                  </p>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Tailleur</Label>
+                    {tailors.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">
+                        Aucun tailleur enregistré. Ajoutez des utilisateurs avec le rôle &quot;tailleur&quot; d&apos;abord.
+                      </p>
+                    ) : (
+                      <Select value={selectedTailor} onValueChange={setSelectedTailor}>
+                        <SelectTrigger className="h-8 text-sm bg-background">
+                          <SelectValue placeholder="Sélectionner un tailleur…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tailors.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Note (optionnel)</Label>
+                    <Textarea
+                      placeholder="Instructions spécifiques pour le tailleur…"
+                      value={assignmentNotes}
+                      onChange={(e) => setAssignmentNotes(e.target.value)}
+                      rows={2}
+                      className="text-sm resize-none bg-background"
+                    />
+                  </div>
+
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={!selectedTailor || assigning}
+                    onClick={assignTailor}
+                  >
+                    {assigning && <Loader2 className="h-4 w-4 animate-spin" />}
+                    <Scissors className="h-4 w-4" />
+                    {activeAssignment ? 'Réassigner' : 'Assigner'}
+                  </Button>
+                </div>
+
+                {/* Historique des assignments */}
+                {assignments.filter((a) => ['rejected', 'cancelled', 'completed'].includes(a.status)).length > 0 && (
+                  <details className="group">
+                    <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground select-none">
+                      Voir l&apos;historique ({assignments.filter((a) => ['rejected', 'cancelled', 'completed'].includes(a.status)).length})
+                    </summary>
+                    <div className="mt-2 space-y-1.5">
+                      {assignments
+                        .filter((a) => ['rejected', 'cancelled', 'completed'].includes(a.status))
+                        .map((a) => {
+                          const s = ASSIGNMENT_STATUS_BADGE[a.status]
+                          const Icon = s.icon
+                          return (
+                            <div key={a.id} className="flex items-center justify-between text-xs py-1.5 px-2 rounded bg-muted/30">
+                              <span className="text-muted-foreground">{a.tailor_name}</span>
+                              <Badge variant={s.variant} className="flex items-center gap-1 text-xs">
+                                <Icon className="h-3 w-3" />
+                                {s.label}
+                              </Badge>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  </details>
+                )}
+              </div>
+
+              <Separator />
 
               {/* Montants */}
               <div className="rounded-lg border p-4 space-y-2">
@@ -253,10 +681,12 @@ export default function OrdersPage() {
                   <span className="text-muted-foreground">Sous-total</span>
                   <span>{formatCurrency((selectedOrder.total_amount ?? 0) - (selectedOrder.tax_amount ?? 0))}</span>
                 </div>
-                {selectedOrder.tax_amount != null && selectedOrder.tax_amount > 0 && (
+                {(selectedOrder.tax_amount ?? 0) > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{selectedOrder.tax_label ?? 'Taxes'} ({((selectedOrder.tax_rate ?? 0) * 100).toFixed(0)}%)</span>
-                    <span>{formatCurrency(selectedOrder.tax_amount)}</span>
+                    <span className="text-muted-foreground">
+                      {selectedOrder.tax_label ?? 'Taxes'} ({((selectedOrder.tax_rate ?? 0) * 100).toFixed(0)}%)
+                    </span>
+                    <span>{formatCurrency(selectedOrder.tax_amount ?? 0)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-semibold border-t pt-2">
@@ -265,7 +695,7 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              {/* Adresse */}
+              {/* Adresse livraison */}
               {selectedOrder.shipping_address && (
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Adresse de livraison</p>
@@ -295,7 +725,7 @@ export default function OrdersPage() {
                 {selectedOrder.stripe_payment_intent_id && (
                   <div className="col-span-2">
                     <p className="text-xs text-muted-foreground">Stripe PI</p>
-                    <p className="font-mono text-xs">{selectedOrder.stripe_payment_intent_id}</p>
+                    <p className="font-mono text-xs break-all">{selectedOrder.stripe_payment_intent_id}</p>
                   </div>
                 )}
               </div>

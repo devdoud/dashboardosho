@@ -3,103 +3,127 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { formatDate } from '@/lib/utils'
-import type { Category, CategoryInsert, CategoryType, CategoryStyle } from '@/types/database'
-import { Plus, Edit, Trash2, RefreshCw, Search } from 'lucide-react'
-
-const TYPE_LABELS: Record<CategoryType, string> = { homme: 'Homme', femme: 'Femme', enfant: 'Enfant' }
-const STYLE_LABELS: Record<CategoryStyle, string> = { traditionnel: 'Traditionnel', moderne: 'Moderne', mixte: 'Mixte' }
-
-const TYPE_BADGE_VARIANT: Record<CategoryType, 'info' | 'warning' | 'success'> = {
-  homme: 'info',
-  femme: 'warning',
-  enfant: 'success',
-}
+import { ImageUpload } from '@/components/ui/image-upload'
+import { BilingualInput, parseI18n, serializeI18n, type I18nValue } from '@/components/ui/bilingual-input'
+import { formatDate, getLabel } from '@/lib/utils'
+import type { Category } from '@/types/database'
+import { Plus, Edit, Trash2, RefreshCw, Search, ImageIcon, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 
 export default function CategoriesPage() {
   const supabase = createClient()
-  const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState<CategoryType | 'all'>('all')
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [categories,   setCategories]   = useState<Category[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [search,       setSearch]       = useState('')
+  const [dialogOpen,   setDialogOpen]   = useState(false)
   const [editCategory, setEditCategory] = useState<Category | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [form, setForm] = useState<Partial<CategoryInsert>>({})
+  const [saving,       setSaving]       = useState(false)
+  const [saveError,    setSaveError]    = useState<string | null>(null)
+  const [deleteId,     setDeleteId]     = useState<string | null>(null)
+  const [nameI18n,     setNameI18n]     = useState<I18nValue>({ fr: '', en: '' })
+  const [slug,         setSlug]         = useState('')
+  const [image,        setImage]        = useState<string | null>(null)
   const [productCounts, setProductCounts] = useState<Record<string, number>>({})
 
+  // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchCategories = useCallback(async () => {
     setLoading(true)
     let query = supabase.from('categories').select('*').order('name')
-    if (typeFilter !== 'all') query = query.eq('type', typeFilter)
-    if (search) query = query.ilike('name', `%${search}%`)
+    if (search) query = query.or(`name->>fr.ilike.%${search}%,name->>en.ilike.%${search}%`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (query as any) as { data: Category[] | null }
+    const cats = data ?? []
+    setCategories(cats)
 
-    const { data } = await query
-    setCategories(data ?? [])
-
-    // Count products per category
-    const counts: Record<string, number> = {}
-    if (data && data.length > 0) {
-      const ids = data.map((c) => c.id)
+    if (cats.length > 0) {
       const { data: products } = await supabase
         .from('products')
         .select('category_id')
-        .in('category_id', ids)
+        .in('category_id', cats.map((c) => c.id))
+      const counts: Record<string, number> = {}
       for (const p of products ?? []) {
         if (p.category_id) counts[p.category_id] = (counts[p.category_id] ?? 0) + 1
       }
+      setProductCounts(counts)
     }
-    setProductCounts(counts)
     setLoading(false)
-  }, [search, typeFilter, supabase])
+  }, [search, supabase])
 
   useEffect(() => { fetchCategories() }, [fetchCategories])
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function slugify(str: string) {
+    return str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  }
+
   function openCreate() {
     setEditCategory(null)
-    setForm({ type: 'homme', style: 'moderne' })
+    setNameI18n({ fr: '', en: '' })
+    setSlug('')
+    setImage(null)
+    setSaveError(null)
     setDialogOpen(true)
   }
 
   function openEdit(cat: Category) {
     setEditCategory(cat)
-    setForm({ name: cat.name, slug: cat.slug, type: cat.type, style: cat.style, image: cat.image ?? '' })
+    setNameI18n(parseI18n(cat.name))
+    setSlug(cat.slug)
+    setImage(cat.image ?? null)
+    setSaveError(null)
     setDialogOpen(true)
   }
 
+  // ── Save ──────────────────────────────────────────────────────────────────
   async function handleSave() {
-    if (!form.name || !form.slug || !form.type || !form.style) return
+    if (!nameI18n.fr.trim()) { setSaveError('Le nom (FR) est obligatoire'); return }
+    if (!slug.trim())         { setSaveError('Le slug est obligatoire'); return }
+
     setSaving(true)
-    if (editCategory) {
-      await supabase.from('categories').update(form).eq('id', editCategory.id)
-    } else {
-      await supabase.from('categories').insert(form as CategoryInsert)
+    setSaveError(null)
+
+    const payload = {
+      name:  serializeI18n(nameI18n) ?? nameI18n,
+      slug:  slug.trim(),
+      image: image ?? null,
     }
+
+    const res = editCategory
+      ? await fetch('/api/admin/categories', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editCategory.id, ...payload }),
+        })
+      : await fetch('/api/admin/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+
     setSaving(false)
+    if (!res.ok) {
+      const d = await res.json()
+      setSaveError(d.error ?? 'Erreur lors de la sauvegarde')
+      return
+    }
     setDialogOpen(false)
     fetchCategories()
   }
 
   async function handleDelete(id: string) {
-    await supabase.from('categories').delete().eq('id', id)
+    await fetch(`/api/admin/categories?id=${id}`, { method: 'DELETE' })
     setDeleteId(null)
     fetchCategories()
   }
 
-  function slugify(name: string) {
-    return name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-  }
-
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Catégories</h1>
@@ -116,39 +140,21 @@ export default function CategoriesPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher..."
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as CategoryType | 'all')}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous types</SelectItem>
-            <SelectItem value="homme">Homme</SelectItem>
-            <SelectItem value="femme">Femme</SelectItem>
-            <SelectItem value="enfant">Enfant</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Search */}
+      <div className="relative max-w-xs">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input placeholder="Rechercher…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
+      {/* Table */}
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12" />
                 <TableHead>Nom</TableHead>
                 <TableHead>Slug</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Style</TableHead>
                 <TableHead className="text-right">Produits</TableHead>
                 <TableHead>Créée le</TableHead>
                 <TableHead />
@@ -158,31 +164,36 @@ export default function CategoriesPage() {
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 7 }).map((_, j) => (
+                    {Array.from({ length: 6 }).map((_, j) => (
                       <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : categories.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                    Aucune catégorie trouvée
-                  </TableCell>
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Aucune catégorie trouvée</TableCell>
                 </TableRow>
               ) : (
                 categories.map((cat) => (
                   <TableRow key={cat.id}>
-                    <TableCell className="font-medium">{cat.name}</TableCell>
+                    <TableCell>
+                      {cat.image ? (
+                        <div className="h-9 w-9 rounded-lg overflow-hidden border bg-muted shrink-0">
+                          <Image src={cat.image} alt={getLabel(cat.name)} width={36} height={36} className="h-full w-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                          <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">{getLabel(cat.name)}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{cat.slug}</TableCell>
-                    <TableCell><Badge variant={TYPE_BADGE_VARIANT[cat.type]}>{TYPE_LABELS[cat.type]}</Badge></TableCell>
-                    <TableCell><Badge variant="outline">{STYLE_LABELS[cat.style]}</Badge></TableCell>
                     <TableCell className="text-right font-medium">{productCounts[cat.id] ?? 0}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{formatDate(cat.created_at)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(cat)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(cat)}><Edit className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteId(cat.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -196,76 +207,81 @@ export default function CategoriesPage() {
         </CardContent>
       </Card>
 
-      {/* Create/Edit Dialog */}
+      {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>{editCategory ? 'Modifier la catégorie' : 'Nouvelle catégorie'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+
+          <div className="space-y-5 py-1">
+            {/* Nom bilingue */}
             <div className="space-y-1.5">
-              <Label>Nom *</Label>
-              <Input
-                value={form.name ?? ''}
-                onChange={(e) => setForm((f) => ({
-                  ...f,
-                  name: e.target.value,
-                  slug: f.slug || slugify(e.target.value),
-                }))}
+              <Label>Nom <span className="text-destructive">*</span></Label>
+              <BilingualInput
+                value={nameI18n}
+                onChange={(val) => {
+                  setNameI18n(val)
+                  if (!editCategory) setSlug(slugify(val.fr))
+                }}
+                placeholder={{ fr: 'Boubou homme, Kaftan femme…', en: 'Men Boubou, Women Kaftan…' }}
+                required
               />
             </div>
+
+            {/* Slug */}
             <div className="space-y-1.5">
-              <Label>Slug *</Label>
+              <Label>
+                Slug <span className="text-destructive">*</span>
+                <span className="ml-2 text-[11px] font-normal text-muted-foreground">généré automatiquement</span>
+              </Label>
               <Input
-                value={form.slug ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
-                placeholder="ex: boubou-homme"
+                value={slug}
+                onChange={(e) => setSlug(slugify(e.target.value))}
+                placeholder="boubou-homme"
+                className="font-mono text-sm"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Type *</Label>
-                <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v as CategoryType }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="homme">Homme</SelectItem>
-                    <SelectItem value="femme">Femme</SelectItem>
-                    <SelectItem value="enfant">Enfant</SelectItem>
-                  </SelectContent>
-                </Select>
+
+            {/* Image */}
+            <div className="space-y-2 pt-1">
+              <Label>Image de la catégorie</Label>
+              <div className="flex items-center gap-4">
+                <ImageUpload
+                  value={image}
+                  onChange={setImage}
+                  onRemove={() => setImage(null)}
+                  bucket="categories"
+                  folder="categories"
+                  size="lg"
+                />
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Format JPG ou PNG recommandé.<br />
+                  Ratio carré ou portrait (ex&nbsp;: 400×500&nbsp;px).
+                </p>
               </div>
-              <div className="space-y-1.5">
-                <Label>Style *</Label>
-                <Select value={form.style} onValueChange={(v) => setForm((f) => ({ ...f, style: v as CategoryStyle }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="traditionnel">Traditionnel</SelectItem>
-                    <SelectItem value="moderne">Moderne</SelectItem>
-                    <SelectItem value="mixte">Mixte</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>URL Image</Label>
-              <Input
-                value={form.image ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
-                placeholder="https://..."
-              />
-            </div>
+
+            {saveError && (
+              <p className="text-sm text-destructive rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2">
+                {saveError}
+              </p>
+            )}
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
-            <Button onClick={handleSave} disabled={saving || !form.name || !form.slug}>
-              {saving ? 'Enregistrement...' : editCategory ? 'Modifier' : 'Créer'}
+            <Button onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+              {editCategory ? 'Modifier' : 'Créer'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Delete confirm */}
       <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Supprimer la catégorie ?</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Les produits liés perdront leur catégorie.</p>
           <DialogFooter>

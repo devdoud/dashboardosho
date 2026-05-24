@@ -41,9 +41,24 @@ export function formatDateTime(date: string | Date | null): string {
   }).format(new Date(date))
 }
 
-export function truncate(str: string, length: number): string {
+export function truncate(str: string | null | undefined, length: number): string {
+  if (!str) return '—'
   if (str.length <= length) return str
   return str.slice(0, length) + '…'
+}
+
+/**
+ * Extrait un nom lisible depuis un champ qui peut être soit une string,
+ * soit un objet multilingue { fr: "...", en: "..." }.
+ */
+export function getLabel(value: unknown, fallback = '—'): string {
+  if (!value) return fallback
+  if (typeof value === 'string') return value || fallback
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    return (obj.fr ?? obj.en ?? obj.name ?? Object.values(obj)[0] ?? fallback) as string
+  }
+  return String(value) || fallback
 }
 
 export function getInitials(name: string): string {

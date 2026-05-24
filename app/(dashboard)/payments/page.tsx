@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { awaitQuery } from '@/lib/supabase/query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -48,7 +49,7 @@ export default function PaymentsPage() {
     if (statusFilter !== 'all') query = query.eq('status', statusFilter)
     if (search) query = query.ilike('stripe_payment_intent_id', `%${search}%`)
 
-    const { data, count } = await query
+    const { data, count } = await awaitQuery<PaymentAttempt>(query)
     setPayments(data ?? [])
     setTotal(count ?? 0)
     setLoading(false)
