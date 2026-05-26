@@ -19,6 +19,33 @@ async function requireAdmin() {
   return data ? user : null
 }
 
+/** GET /api/admin/orders/assign — liste des tailleurs disponibles */
+export async function GET() {
+  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const sa = adminClient()
+  const { data: roles } = await sa.from('user_roles').select('user_id').eq('role', 'tailor')
+  const ids = (roles ?? []).map((r) => r.user_id)
+
+  if (ids.length === 0) return NextResponse.json({ tailors: [] })
+
+  const { data: addresses } = await sa
+    .from('addresses')
+    .select('user_id, full_name')
+    .in('user_id', ids)
+    .eq('is_default', true)
+
+  const nameMap: Record<string, string> = {}
+  for (const a of addresses ?? []) nameMap[a.user_id] = a.full_name
+
+  const tailors = ids.map((id) => ({
+    id,
+    name: nameMap[id] ?? `Tailleur ${id.slice(0, 6)}`,
+  }))
+
+  return NextResponse.json({ tailors })
+}
+
 /** POST /api/admin/orders/assign — assigner un tailleur */
 export async function POST(request: NextRequest) {
   if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

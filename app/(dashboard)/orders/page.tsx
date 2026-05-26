@@ -137,7 +137,19 @@ export default function OrdersPage() {
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
-  // ─── Fetch detail (items + assignments + tailors) ─────────────────────────────
+  // ─── Fetch tailors (indépendant, chargé au montage) ───────────────────────────
+
+  const fetchTailors = useCallback(async () => {
+    const res = await fetch('/api/admin/orders/assign')
+    if (res.ok) {
+      const json = await res.json()
+      setTailors(json.tailors ?? [])
+    }
+  }, [])
+
+  useEffect(() => { fetchTailors() }, [fetchTailors])
+
+  // ─── Fetch detail (items + assignments) ──────────────────────────────────────
 
   const fetchDetail = useCallback(async (orderId: string) => {
     setLoadingItems(true)
@@ -147,7 +159,6 @@ export default function OrdersPage() {
       const json = await res.json()
       setOrderItems(json.items ?? [])
       setAssignments(json.assignments ?? [])
-      if (json.tailors?.length) setTailors(json.tailors)
     }
     setLoadingItems(false)
     setLoadingAssignments(false)
@@ -159,7 +170,6 @@ export default function OrdersPage() {
     if (res.ok) {
       const json = await res.json()
       setAssignments(json.assignments ?? [])
-      if (json.tailors?.length) setTailors(json.tailors)
     }
     setLoadingAssignments(false)
   }, [])
@@ -170,6 +180,7 @@ export default function OrdersPage() {
     setAssignmentNotes('')
     setOrderItems([])
     fetchDetail(order.id)
+    fetchTailors()
   }
 
   // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -534,9 +545,15 @@ export default function OrdersPage() {
 
                 {/* Formulaire d'assignation */}
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {activeAssignment ? 'Réassigner à un autre tailleur' : 'Choisir un tailleur'}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      {activeAssignment ? 'Réassigner à un autre tailleur' : 'Choisir un tailleur'}
+                    </p>
+                    <button type="button" onClick={fetchTailors} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+                      <RefreshCw className="h-3 w-3" />
+                      Actualiser
+                    </button>
+                  </div>
 
                   {tailors.length === 0 ? (
                     <p className="text-xs text-muted-foreground italic">
