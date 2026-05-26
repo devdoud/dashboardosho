@@ -15,7 +15,7 @@ import { formatCurrency, formatDateTime, getLabel } from '@/lib/utils'
 import type { Order, OrderStatus, PaymentStatus, OrderAssignment, AssignmentStatus } from '@/types/database'
 import {
   Search, Eye, RefreshCw, ChevronLeft, ChevronRight,
-  Scissors, CheckCircle, XCircle, Clock, AlertCircle, Loader2, Package, MessageSquare,
+  Scissors, CheckCircle, XCircle, Clock, AlertCircle, Loader2, Package, MessageSquare, User,
 } from 'lucide-react'
 import Image from 'next/image'
 
@@ -85,10 +85,17 @@ interface OrderItemWithProduct {
   measurements_snapshot: Record<string, unknown> | null
   product: {
     id: string
-    title: unknown
+    name: unknown
     thumbnail: string | null
     sku: string
   } | null
+}
+
+interface CustomerInfo {
+  id: string
+  name: string
+  email: string
+  phone: string
 }
 
 // ─── Composant principal ──────────────────────────────────────────────────────
@@ -107,6 +114,8 @@ export default function OrdersPage() {
   // Order items state
   const [orderItems, setOrderItems] = useState<OrderItemWithProduct[]>([])
   const [loadingItems, setLoadingItems] = useState(false)
+  const [customer, setCustomer] = useState<CustomerInfo | null>(null)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
 
   // Assignment state
   const [assignments, setAssignments] = useState<AssignmentWithTailor[]>([])
@@ -151,14 +160,17 @@ export default function OrdersPage() {
 
   // ─── Fetch detail (items + assignments) ──────────────────────────────────────
 
-  const fetchDetail = useCallback(async (orderId: string) => {
+  const fetchDetail = useCallback(async (orderId: string, userId?: string) => {
     setLoadingItems(true)
     setLoadingAssignments(true)
-    const res = await fetch(`/api/admin/orders/detail?orderId=${orderId}`)
+    const params = new URLSearchParams({ orderId })
+    if (userId) params.set('userId', userId)
+    const res = await fetch(`/api/admin/orders/detail?${params}`)
     if (res.ok) {
       const json = await res.json()
       setOrderItems(json.items ?? [])
       setAssignments(json.assignments ?? [])
+      setCustomer(json.customer ?? null)
     }
     setLoadingItems(false)
     setLoadingAssignments(false)
@@ -179,7 +191,8 @@ export default function OrdersPage() {
     setSelectedTailor('')
     setAssignmentNotes('')
     setOrderItems([])
-    fetchDetail(order.id)
+    setCustomer(null)
+    fetchDetail(order.id, order.user_id)
     fetchTailors()
   }
 
@@ -366,14 +379,37 @@ export default function OrdersPage() {
       <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              Commande
-              <span className="font-mono text-sm text-muted-foreground">#{selectedOrder?.id.slice(0, 8)}</span>
-            </DialogTitle>
+            <DialogTitle>Détail de la commande</DialogTitle>
           </DialogHeader>
 
           {selectedOrder && (
             <div className="space-y-5">
+
+              {/* ── Informations client ── */}
+              <div className="rounded-lg border p-3 flex items-start gap-3">
+                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <User className="h-4 w-4 text-primary" />
+                </div>
+                {customer ? (
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold leading-tight">{customer.name}</p>
+                    {customer.email && (
+                      <p className="text-xs text-muted-foreground truncate">{customer.email}</p>
+                    )}
+                    {customer.phone && (
+                      <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <div className="h-4 w-36 bg-muted animate-pulse rounded" />
+                    <div className="h-3 w-48 bg-muted animate-pulse rounded" />
+                  </div>
+                )}
+                <span className="ml-auto font-mono text-xs text-muted-foreground shrink-0">
+                  #{selectedOrder.id.slice(0, 8)}
+                </span>
+              </div>
 
               {/* Statut commande */}
               <div className="grid grid-cols-2 gap-4">
@@ -444,7 +480,11 @@ export default function OrdersPage() {
                         {/* En-tête article */}
                         <div className="flex items-center gap-3 p-3 bg-muted/20">
                           {item.product?.thumbnail ? (
-                            <div className="relative h-14 w-14 shrink-0 rounded-lg overflow-hidden border">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewImage(item.product!.thumbnail)}
+                              className="relative h-14 w-14 shrink-0 rounded-lg overflow-hidden border hover:ring-2 hover:ring-primary transition-all cursor-zoom-in"
+                            >
                               <Image
                                 src={item.product.thumbnail}
                                 alt={getLabel(item.product.name, 'Produit')}
@@ -452,7 +492,7 @@ export default function OrdersPage() {
                                 className="object-cover"
                                 sizes="56px"
                               />
-                            </div>
+                            </button>
                           ) : (
                             <div className="h-14 w-14 shrink-0 rounded-lg bg-muted flex items-center justify-center">
                               <Package className="h-6 w-6 text-muted-foreground" />
@@ -692,6 +732,32 @@ export default function OrdersPage() {
                     <p className="font-mono text-xs break-all">{selectedOrder.stripe_payment_intent_id}</p>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+          {/* ── Image preview (inside dialog, above everything) ── */}
+          {previewImage && (
+            <div
+              className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 backdrop-blur-sm rounded-lg"
+              onClick={() => setPreviewImage(null)}
+            >
+              <div className="relative max-w-sm w-full mx-6" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImage(null)}
+                  className="absolute -top-3 -right-3 z-10 h-7 w-7 rounded-full bg-white text-black flex items-center justify-center shadow-lg text-sm font-bold hover:bg-gray-100"
+                >
+                  ✕
+                </button>
+                <div className="relative w-full rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: '1' }}>
+                  <Image
+                    src={previewImage}
+                    alt="Aperçu produit"
+                    fill
+                    className="object-contain bg-white"
+                    sizes="480px"
+                  />
+                </div>
               </div>
             </div>
           )}

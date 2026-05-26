@@ -83,7 +83,6 @@ export interface OrderItem {
   customization_details: CustomizationDetails | null
   configuration_snapshot: Json | null
   measurements_snapshot: Json | null
-  created_at: string
 }
 
 export type OrderItemInsert = Omit<OrderItem, 'id' | 'created_at'>
