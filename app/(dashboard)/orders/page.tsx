@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { awaitQuery } from '@/lib/supabase/query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -96,7 +94,6 @@ interface OrderItemWithProduct {
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function OrdersPage() {
-  const supabase = createClient()
   const [orders, setOrders] = useState<Order[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
@@ -119,115 +116,71 @@ export default function OrdersPage() {
   const [assigning, setAssigning] = useState(false)
   const [loadingAssignments, setLoadingAssignments] = useState(false)
 
-  // ─── Fetch orders ────────────────────────────────────────────────────────────
+  // ─── Fetch orders via API (service role — bypass RLS) ────────────────────────
 
   const fetchOrders = useCallback(async () => {
     setLoading(true)
-    let query = supabase
-      .from('orders')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
-
-    if (statusFilter !== 'all') query = query.eq('status', statusFilter)
-    if (paymentFilter !== 'all') query = query.eq('payment_status', paymentFilter)
-    if (search) query = query.ilike('id', `%${search}%`)
-
-    const { data, count } = await awaitQuery<Order>(query)
-    setOrders(data ?? [])
-    setTotal(count ?? 0)
+    const params = new URLSearchParams({
+      page: String(page),
+      status: statusFilter,
+      payment: paymentFilter,
+      ...(search ? { search } : {}),
+    })
+    const res = await fetch(`/api/admin/orders?${params}`)
+    if (res.ok) {
+      const json = await res.json()
+      setOrders(json.orders ?? [])
+      setTotal(json.total ?? 0)
+    }
     setLoading(false)
-  }, [page, statusFilter, paymentFilter, search, supabase])
+  }, [page, statusFilter, paymentFilter, search])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
-  // ─── Fetch tailors ────────────────────────────────────────────────────────────
+  // ─── Fetch detail (items + assignments + tailors) ─────────────────────────────
 
-  useEffect(() => {
-    async function loadTailors() {
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .eq('role', 'tailor')
-
-      if (!roles || roles.length === 0) return
-
-      const ids = roles.map((r) => r.user_id)
-      const { data: addresses } = await supabase
-        .from('addresses')
-        .select('user_id, full_name')
-        .in('user_id', ids)
-        .eq('is_default', true)
-
-      const nameMap: Record<string, string> = {}
-      for (const a of addresses ?? []) nameMap[a.user_id] = a.full_name
-
-      setTailors(ids.map((id) => ({
-        id,
-        name: nameMap[id] ?? `Tailleur ${id.slice(0, 6)}`,
-      })))
+  const fetchDetail = useCallback(async (orderId: string) => {
+    setLoadingItems(true)
+    setLoadingAssignments(true)
+    const res = await fetch(`/api/admin/orders/detail?orderId=${orderId}`)
+    if (res.ok) {
+      const json = await res.json()
+      setOrderItems(json.items ?? [])
+      setAssignments(json.assignments ?? [])
+      if (json.tailors?.length) setTailors(json.tailors)
     }
-    loadTailors()
-  }, [supabase])
-
-  // ─── Fetch assignments for selected order ────────────────────────────────────
+    setLoadingItems(false)
+    setLoadingAssignments(false)
+  }, [])
 
   const fetchAssignments = useCallback(async (orderId: string) => {
     setLoadingAssignments(true)
-    const { data } = await supabase
-      .from('order_assignments')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('assigned_at', { ascending: false })
-
-    const list = (data ?? []) as OrderAssignment[]
-
-    // Enrich with tailor names
-    const tailorIds = [...new Set(list.map((a) => a.tailor_id))]
-    const nameMap: Record<string, string> = {}
-    if (tailorIds.length > 0) {
-      const { data: addresses } = await supabase
-        .from('addresses')
-        .select('user_id, full_name')
-        .in('user_id', tailorIds)
-        .eq('is_default', true)
-      for (const a of addresses ?? []) nameMap[a.user_id] = a.full_name
+    const res = await fetch(`/api/admin/orders/detail?orderId=${orderId}`)
+    if (res.ok) {
+      const json = await res.json()
+      setAssignments(json.assignments ?? [])
+      if (json.tailors?.length) setTailors(json.tailors)
     }
-
-    setAssignments(list.map((a) => ({
-      ...a,
-      tailor_name: nameMap[a.tailor_id] ?? `Tailleur ${a.tailor_id.slice(0, 6)}`,
-    })))
     setLoadingAssignments(false)
-  }, [supabase])
-
-  // ─── Fetch order items ────────────────────────────────────────────────────────
-
-  const fetchOrderItems = useCallback(async (orderId: string) => {
-    setLoadingItems(true)
-    const { data } = await supabase
-      .from('order_items')
-      .select('*, product:products(id, title, thumbnail, sku)')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: true })
-    setOrderItems((data as OrderItemWithProduct[]) ?? [])
-    setLoadingItems(false)
-  }, [supabase])
+  }, [])
 
   function openOrderDetail(order: Order) {
     setSelectedOrder(order)
     setSelectedTailor('')
     setAssignmentNotes('')
     setOrderItems([])
-    fetchAssignments(order.id)
-    fetchOrderItems(order.id)
+    fetchDetail(order.id)
   }
 
   // ─── Actions ──────────────────────────────────────────────────────────────────
 
   async function updateOrderStatus(orderId: string, status: OrderStatus) {
     setUpdatingId(orderId)
-    await supabase.from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId)
+    await fetch('/api/admin/orders', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: orderId, status }),
+    })
     await fetchOrders()
     if (selectedOrder?.id === orderId) {
       setSelectedOrder((prev) => prev ? { ...prev, status } : null)
@@ -238,32 +191,19 @@ export default function OrdersPage() {
   async function assignTailor() {
     if (!selectedOrder || !selectedTailor) return
     setAssigning(true)
-
-    // Annuler les assignments actifs précédents
-    await supabase
-      .from('order_assignments')
-      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-      .eq('order_id', selectedOrder.id)
-      .in('status', ['pending', 'accepted', 'in_progress'])
-
-    // Créer le nouvel assignment
-    await supabase.from('order_assignments').insert({
-      order_id: selectedOrder.id,
-      tailor_id: selectedTailor,
-      status: 'pending',
-      assigned_at: new Date().toISOString(),
-      notes: assignmentNotes || null,
+    await fetch('/api/admin/orders/assign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderId: selectedOrder.id,
+        tailorId: selectedTailor,
+        notes: assignmentNotes,
+        currentStatus: selectedOrder.status,
+      }),
     })
-
-    // Passer la commande en "processing"
     if (selectedOrder.status === 'pending') {
-      await supabase
-        .from('orders')
-        .update({ status: 'processing', primary_tailor_id: selectedTailor, updated_at: new Date().toISOString() })
-        .eq('id', selectedOrder.id)
       setSelectedOrder((prev) => prev ? { ...prev, status: 'processing' } : null)
     }
-
     setSelectedTailor('')
     setAssignmentNotes('')
     await fetchAssignments(selectedOrder.id)
@@ -272,10 +212,7 @@ export default function OrdersPage() {
   }
 
   async function cancelAssignment(assignmentId: string) {
-    await supabase
-      .from('order_assignments')
-      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-      .eq('id', assignmentId)
+    await fetch(`/api/admin/orders/assign?id=${assignmentId}`, { method: 'DELETE' })
     if (selectedOrder) await fetchAssignments(selectedOrder.id)
   }
 
@@ -355,8 +292,8 @@ export default function OrdersPage() {
                 </TableRow>
               ) : (
                 orders.map((order) => {
-                  const os = ORDER_STATUS_BADGE[order.status]
-                  const ps = PAYMENT_STATUS_BADGE[order.payment_status]
+                  const os = ORDER_STATUS_BADGE[order.status]   ?? { label: order.status   ?? '—', variant: 'outline' as const }
+                  const ps = PAYMENT_STATUS_BADGE[order.payment_status] ?? { label: order.payment_status ?? '—', variant: 'outline' as const }
                   const tailorName = order.primary_tailor_id
                     ? tailors.find((t) => t.id === order.primary_tailor_id)?.name
                     : null
@@ -450,8 +387,8 @@ export default function OrdersPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1.5">Paiement</p>
-                  <Badge variant={PAYMENT_STATUS_BADGE[selectedOrder.payment_status].variant}>
-                    {PAYMENT_STATUS_BADGE[selectedOrder.payment_status].label}
+                  <Badge variant={(PAYMENT_STATUS_BADGE[selectedOrder.payment_status] ?? { variant: 'outline' }).variant}>
+                    {(PAYMENT_STATUS_BADGE[selectedOrder.payment_status] ?? { label: selectedOrder.payment_status ?? '—' }).label}
                   </Badge>
                 </div>
               </div>
@@ -563,7 +500,7 @@ export default function OrdersPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {(() => {
-                          const s = ASSIGNMENT_STATUS_BADGE[activeAssignment.status]
+                          const s = ASSIGNMENT_STATUS_BADGE[activeAssignment.status] ?? { label: activeAssignment.status, variant: 'outline' as const, icon: Clock }
                           const Icon = s.icon
                           return (
                             <Badge variant={s.variant} className="flex items-center gap-1">
@@ -598,30 +535,40 @@ export default function OrdersPage() {
                 {/* Formulaire d'assignation */}
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {activeAssignment ? 'Réassigner à un autre tailleur' : 'Assigner un tailleur'}
+                    {activeAssignment ? 'Réassigner à un autre tailleur' : 'Choisir un tailleur'}
                   </p>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Tailleur</Label>
-                    {tailors.length === 0 ? (
-                      <p className="text-xs text-muted-foreground italic">
-                        Aucun tailleur enregistré. Ajoutez des utilisateurs avec le rôle &quot;tailleur&quot; d&apos;abord.
-                      </p>
-                    ) : (
-                      <Select value={selectedTailor} onValueChange={setSelectedTailor}>
-                        <SelectTrigger className="h-8 text-sm bg-background">
-                          <SelectValue placeholder="Sélectionner un tailleur…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {tailors.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
+                  {tailors.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">
+                      Aucun tailleur enregistré. Ajoutez des utilisateurs avec le rôle &quot;tailleur&quot; d&apos;abord.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {tailors.map((t) => {
+                        const initials = t.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+                        const selected = selectedTailor === t.id
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setSelectedTailor(selected ? '' : t.id)}
+                            className={`flex items-center gap-2.5 rounded-lg border p-2.5 text-left transition-all ${
+                              selected
+                                ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                                : 'border-border bg-background hover:bg-muted/50'
+                            }`}
+                          >
+                            <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                              selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                            }`}>
+                              {initials}
+                            </div>
+                            <span className="text-xs font-medium truncate">{t.name}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
 
                   <div className="space-y-1.5">
                     <Label className="text-xs">Note (optionnel)</Label>
@@ -656,7 +603,7 @@ export default function OrdersPage() {
                       {assignments
                         .filter((a) => ['rejected', 'cancelled', 'completed'].includes(a.status))
                         .map((a) => {
-                          const s = ASSIGNMENT_STATUS_BADGE[a.status]
+                          const s = ASSIGNMENT_STATUS_BADGE[a.status] ?? { label: a.status, variant: 'outline' as const, icon: Clock }
                           const Icon = s.icon
                           return (
                             <div key={a.id} className="flex items-center justify-between text-xs py-1.5 px-2 rounded bg-muted/30">
