@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -59,7 +58,6 @@ const ASSIGNMENT_BADGE: Record<string, { label: string; variant: 'default' | 'se
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function TailorsPage() {
-  const supabase = createClient()
   const [tailors, setTailors] = useState<TailorStats[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -75,104 +73,13 @@ export default function TailorsPage() {
 
   const fetchTailors = useCallback(async () => {
     setLoading(true)
-
-    // 1. Récupérer les user_ids avec rôle tailleur
-    const { data: roles } = await supabase
-      .from('user_roles')
-      .select('user_id, created_at')
-      .eq('role', 'tailor')
-      .order('created_at', { ascending: false })
-
-    if (!roles || roles.length === 0) {
-      setTailors([])
-      setLoading(false)
-      return
+    const res = await fetch('/api/admin/tailors')
+    if (res.ok) {
+      const json = await res.json()
+      setTailors(json.tailors ?? [])
     }
-
-    const ids = roles.map((r) => r.user_id)
-    const createdMap: Record<string, string> = {}
-    for (const r of roles) createdMap[r.user_id] = r.created_at
-
-    // 2. Adresses par défaut (pour nom, phone, ville)
-    const { data: addresses } = await supabase
-      .from('addresses')
-      .select('user_id, full_name, phone, city')
-      .in('user_id', ids)
-      .eq('is_default', true)
-
-    const addrMap: Record<string, { name: string; phone: string; city: string }> = {}
-    for (const a of addresses ?? []) {
-      addrMap[a.user_id] = { name: a.full_name, phone: a.phone ?? '', city: a.city ?? '' }
-    }
-
-    // 3. Assignations groupées
-    const { data: allAssignments } = await supabase
-      .from('order_assignments')
-      .select('tailor_id, status, order_id')
-      .in('tailor_id', ids)
-
-    const assignStats: Record<string, Record<string, number>> = {}
-    for (const a of allAssignments ?? []) {
-      if (!assignStats[a.tailor_id]) assignStats[a.tailor_id] = {}
-      assignStats[a.tailor_id][a.status] = (assignStats[a.tailor_id][a.status] ?? 0) + 1
-    }
-
-    // 4. Avis
-    const { data: reviews } = await supabase
-      .from('tailor_reviews')
-      .select('tailor_id, rating')
-      .in('tailor_id', ids)
-
-    const reviewStats: Record<string, { total: number; count: number }> = {}
-    for (const r of reviews ?? []) {
-      if (!reviewStats[r.tailor_id]) reviewStats[r.tailor_id] = { total: 0, count: 0 }
-      reviewStats[r.tailor_id].total += r.rating
-      reviewStats[r.tailor_id].count += 1
-    }
-
-    // 5. Revenus (ordres complétés)
-    const completedOrderIds = (allAssignments ?? [])
-      .filter((a) => a.status === 'completed')
-      .map((a) => a.order_id)
-
-    const earningsMap: Record<string, number> = {}
-    if (completedOrderIds.length > 0) {
-      const { data: completedOrders } = await supabase
-        .from('orders')
-        .select('id, total_amount, primary_tailor_id')
-        .in('id', completedOrderIds)
-
-      for (const o of completedOrders ?? []) {
-        if (o.primary_tailor_id) {
-          earningsMap[o.primary_tailor_id] = (earningsMap[o.primary_tailor_id] ?? 0) + (o.total_amount ?? 0)
-        }
-      }
-    }
-
-    // 6. Assemblage
-    const result: TailorStats[] = ids.map((id) => {
-      const stats = assignStats[id] ?? {}
-      const rev = reviewStats[id] ?? { total: 0, count: 0 }
-      return {
-        id,
-        name: addrMap[id]?.name ?? `Tailleur ${id.slice(0, 6)}`,
-        phone: addrMap[id]?.phone ?? '—',
-        city: addrMap[id]?.city ?? '—',
-        created_at: createdMap[id] ?? '',
-        total_assignments: Object.values(stats).reduce((s, v) => s + v, 0),
-        pending: stats.pending ?? 0,
-        in_progress: (stats.in_progress ?? 0) + (stats.accepted ?? 0),
-        completed: stats.completed ?? 0,
-        rejected: (stats.rejected ?? 0) + (stats.cancelled ?? 0),
-        avg_rating: rev.count > 0 ? rev.total / rev.count : 0,
-        review_count: rev.count,
-        total_earned: earningsMap[id] ?? 0,
-      }
-    })
-
-    setTailors(result)
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => { fetchTailors() }, [fetchTailors])
 
@@ -181,35 +88,11 @@ export default function TailorsPage() {
   async function openDetail(tailor: TailorStats) {
     setSelectedTailor(tailor)
     setLoadingDetail(true)
-
-    const { data } = await supabase
-      .from('order_assignments')
-      .select('id, order_id, status, assigned_at, completed_at, notes')
-      .eq('tailor_id', tailor.id)
-      .order('assigned_at', { ascending: false })
-      .limit(20)
-
-    const list = data ?? []
-    const orderIds = list.map((a) => a.order_id)
-
-    const totalsMap: Record<string, number> = {}
-    if (orderIds.length > 0) {
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('id, total_amount')
-        .in('id', orderIds)
-      for (const o of orders ?? []) totalsMap[o.id] = o.total_amount ?? 0
+    const res = await fetch(`/api/admin/tailors/detail?tailorId=${tailor.id}`)
+    if (res.ok) {
+      const json = await res.json()
+      setAssignments(json.assignments ?? [])
     }
-
-    setAssignments(list.map((a) => ({
-      id: a.id,
-      order_id: a.order_id,
-      status: a.status,
-      assigned_at: a.assigned_at,
-      completed_at: a.completed_at,
-      notes: a.notes,
-      order_total: totalsMap[a.order_id] ?? 0,
-    })))
     setLoadingDetail(false)
   }
 
@@ -220,30 +103,15 @@ export default function TailorsPage() {
     setAddingRole(true)
     setAddError('')
 
-    // Trouver l'utilisateur par email via auth.users (lecture via admin)
-    const { data: users, error } = await supabase.rpc('get_user_id_by_email', {
-      p_email: newTailorEmail.trim().toLowerCase(),
+    const res = await fetch('/api/admin/tailors/promote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: newTailorEmail.trim() }),
     })
 
-    if (error || !users) {
-      setAddError('Utilisateur introuvable. Vérifiez l\'email.')
-      setAddingRole(false)
-      return
-    }
-
-    const userId = typeof users === 'string' ? users : users?.[0]?.id
-    if (!userId) {
-      setAddError('Utilisateur introuvable.')
-      setAddingRole(false)
-      return
-    }
-
-    const { error: insertError } = await supabase
-      .from('user_roles')
-      .upsert({ user_id: userId, role: 'tailor' }, { onConflict: 'user_id' })
-
-    if (insertError) {
-      setAddError(insertError.message)
+    if (!res.ok) {
+      const d = await res.json()
+      setAddError(d.error ?? 'Erreur lors de l\'attribution du rôle')
     } else {
       setNewTailorEmail('')
       setAddDialogOpen(false)
@@ -255,7 +123,7 @@ export default function TailorsPage() {
   // ─── Révoquer le rôle tailleur ────────────────────────────────────────────
 
   async function revokeTailor(id: string) {
-    await supabase.from('user_roles').delete().eq('user_id', id).eq('role', 'tailor')
+    await fetch(`/api/admin/tailors/promote?userId=${id}`, { method: 'DELETE' })
     setSelectedTailor(null)
     fetchTailors()
   }

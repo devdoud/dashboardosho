@@ -53,23 +53,34 @@ export async function GET(request: NextRequest) {
   ]
 
   const addressMap: Record<string, string> = {}
+  const authEmailMap: Record<string, string> = {}
+
   if (allTailorIds.length > 0) {
-    const { data: addresses } = await sa
-      .from('addresses')
-      .select('user_id, full_name')
-      .in('user_id', allTailorIds)
-      .eq('is_default', true)
-    for (const a of addresses ?? []) addressMap[a.user_id] = a.full_name
+    const [addrRes, authRes] = await Promise.all([
+      sa.from('addresses').select('user_id, full_name').in('user_id', allTailorIds).eq('is_default', true),
+      sa.auth.admin.listUsers({ perPage: 1000 }),
+    ])
+    for (const a of addrRes.data ?? []) addressMap[a.user_id] = a.full_name
+    for (const u of authRes.data?.users ?? []) {
+      if (allTailorIds.includes(u.id)) {
+        const meta = u.user_metadata as Record<string, string> | undefined
+        authEmailMap[u.id] = meta?.full_name || meta?.name || u.email?.split('@')[0] || u.id.slice(0, 6)
+      }
+    }
+  }
+
+  function resolveName(id: string) {
+    return addressMap[id] || authEmailMap[id] || `Tailleur ${id.slice(0, 6)}`
   }
 
   const assignments = (assignmentsRes.data ?? []).map((a) => ({
     ...a,
-    tailor_name: addressMap[a.tailor_id] ?? `Tailleur ${a.tailor_id.slice(0, 6)}`,
+    tailor_name: resolveName(a.tailor_id),
   }))
 
   const tailors = (tailorRolesRes.data ?? []).map((r) => ({
     id: r.user_id,
-    name: addressMap[r.user_id] ?? `Tailleur ${r.user_id.slice(0, 6)}`,
+    name: resolveName(r.user_id),
   }))
 
   return NextResponse.json({

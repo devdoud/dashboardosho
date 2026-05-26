@@ -29,19 +29,21 @@ export async function GET() {
 
   if (ids.length === 0) return NextResponse.json({ tailors: [] })
 
-  const { data: addresses } = await sa
-    .from('addresses')
-    .select('user_id, full_name')
-    .in('user_id', ids)
-    .eq('is_default', true)
+  const [addrRes, authRes] = await Promise.all([
+    sa.from('addresses').select('user_id, full_name').in('user_id', ids).eq('is_default', true),
+    sa.auth.admin.listUsers({ perPage: 1000 }),
+  ])
 
   const nameMap: Record<string, string> = {}
-  for (const a of addresses ?? []) nameMap[a.user_id] = a.full_name
+  for (const a of addrRes.data ?? []) nameMap[a.user_id] = a.full_name
+  for (const u of authRes.data?.users ?? []) {
+    if (ids.includes(u.id) && !nameMap[u.id]) {
+      const meta = u.user_metadata as Record<string, string> | undefined
+      nameMap[u.id] = meta?.full_name || meta?.name || u.email?.split('@')[0] || u.id.slice(0, 6)
+    }
+  }
 
-  const tailors = ids.map((id) => ({
-    id,
-    name: nameMap[id] ?? `Tailleur ${id.slice(0, 6)}`,
-  }))
+  const tailors = ids.map((id) => ({ id, name: nameMap[id] ?? id.slice(0, 8) }))
 
   return NextResponse.json({ tailors })
 }
