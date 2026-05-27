@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { awaitQuery } from '@/lib/supabase/query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,17 +12,16 @@ import type { PaymentAttempt, PaymentAttemptStatus } from '@/types/database'
 import { Search, RefreshCw, TrendingUp, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const STATUS_BADGE: Record<PaymentAttemptStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info' }> = {
-  pending: { label: 'En attente', variant: 'warning' },
-  processing: { label: 'En cours', variant: 'info' },
-  succeeded: { label: 'Réussi', variant: 'success' },
-  failed: { label: 'Échoué', variant: 'destructive' },
-  cancelled: { label: 'Annulé', variant: 'outline' },
+  pending:    { label: 'En attente', variant: 'warning' },
+  processing: { label: 'En cours',   variant: 'info' },
+  succeeded:  { label: 'Réussi',     variant: 'success' },
+  failed:     { label: 'Échoué',     variant: 'destructive' },
+  cancelled:  { label: 'Annulé',     variant: 'outline' },
 }
 
 const PAGE_SIZE = 20
 
 export default function PaymentsPage() {
-  const supabase = createClient()
   const [payments, setPayments] = useState<PaymentAttempt[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
@@ -40,49 +37,22 @@ export default function PaymentsPage() {
 
   const fetchPayments = useCallback(async () => {
     setLoading(true)
-    let query = supabase
-      .from('payment_attempts')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
-
-    if (statusFilter !== 'all') query = query.eq('status', statusFilter)
-    if (search) query = query.ilike('stripe_payment_intent_id', `%${search}%`)
-
-    const { data, count } = await awaitQuery<PaymentAttempt>(query)
-    setPayments(data ?? [])
-    setTotal(count ?? 0)
-    setLoading(false)
-  }, [page, statusFilter, search, supabase])
-
-  const fetchStats = useCallback(async () => {
-    const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-
-    const [
-      { count: succeeded },
-      { count: failed },
-      { count: pending },
-      { data: monthPayments },
-    ] = await Promise.all([
-      supabase.from('payment_attempts').select('*', { count: 'exact', head: true }).eq('status', 'succeeded'),
-      supabase.from('payment_attempts').select('*', { count: 'exact', head: true }).eq('status', 'failed'),
-      supabase.from('payment_attempts').select('*', { count: 'exact', head: true }).in('status', ['pending', 'processing']),
-      supabase.from('payment_attempts').select('amount').eq('status', 'succeeded').gte('created_at', startOfMonth),
-    ])
-
-    setStats({
-      totalSucceeded: succeeded ?? 0,
-      totalFailed: failed ?? 0,
-      totalPending: pending ?? 0,
-      revenueMonth: monthPayments?.reduce((s, p) => s + (p.amount ?? 0), 0) ?? 0,
+    const params = new URLSearchParams({
+      page: String(page),
+      status: statusFilter,
+      ...(search ? { search } : {}),
     })
-  }, [supabase])
+    const res = await fetch(`/api/admin/payments?${params}`)
+    if (res.ok) {
+      const json = await res.json()
+      setPayments(json.payments ?? [])
+      setTotal(json.total ?? 0)
+      if (json.stats) setStats(json.stats)
+    }
+    setLoading(false)
+  }, [page, statusFilter, search])
 
-  useEffect(() => {
-    fetchPayments()
-    fetchStats()
-  }, [fetchPayments, fetchStats])
+  useEffect(() => { fetchPayments() }, [fetchPayments])
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
@@ -93,7 +63,7 @@ export default function PaymentsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Paiements</h1>
           <p className="text-muted-foreground text-sm">{total} tentatives de paiement</p>
         </div>
-        <Button variant="outline" size="icon" onClick={() => { fetchPayments(); fetchStats() }} disabled={loading}>
+        <Button variant="outline" size="icon" onClick={fetchPayments} disabled={loading}>
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
@@ -203,7 +173,7 @@ export default function PaymentsPage() {
                 </TableRow>
               ) : (
                 payments.map((p) => {
-                  const s = STATUS_BADGE[p.status]
+                  const s = STATUS_BADGE[p.status] ?? { label: p.status, variant: 'outline' as const }
                   return (
                     <TableRow key={p.id}>
                       <TableCell className="font-mono text-xs">{p.stripe_payment_intent_id?.slice(0, 20)}…</TableCell>
@@ -211,7 +181,7 @@ export default function PaymentsPage() {
                       <TableCell><Badge variant={s.variant}>{s.label}</Badge></TableCell>
                       <TableCell className="uppercase text-xs">{p.currency}</TableCell>
                       <TableCell className="text-right font-medium">
-                        {formatCurrency(p.amount, p.currency.toUpperCase())}
+                        {formatCurrency(p.amount, p.currency?.toUpperCase())}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{formatDateTime(p.paid_at)}</TableCell>
                       <TableCell className="text-xs text-destructive max-w-[200px] truncate">

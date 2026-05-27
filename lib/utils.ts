@@ -53,10 +53,20 @@ export function truncate(str: string | null | undefined, length: number): string
  */
 export function getLabel(value: unknown, fallback = '—'): string {
   if (!value) return fallback
-  if (typeof value === 'string') return value || fallback
+  if (typeof value === 'string') {
+    if (value.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(value)
+        if (parsed && typeof parsed === 'object') {
+          return String(parsed.fr ?? parsed.en ?? parsed.name ?? Object.values(parsed)[0] ?? fallback) || fallback
+        }
+      } catch { /* not JSON, return as-is */ }
+    }
+    return value || fallback
+  }
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>
-    return (obj.fr ?? obj.en ?? obj.name ?? Object.values(obj)[0] ?? fallback) as string
+    return String(obj.fr ?? obj.en ?? obj.name ?? Object.values(obj)[0] ?? fallback) || fallback
   }
   return String(value) || fallback
 }
