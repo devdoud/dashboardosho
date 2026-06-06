@@ -58,11 +58,11 @@ export async function POST(request: NextRequest) {
   const sa = adminClient()
   const now = new Date().toISOString()
 
-  // Annuler les assignments actifs
+  // Annuler les assignments actifs ou refusés
   await sa.from('order_assignments')
     .update({ status: 'cancelled', updated_at: now })
     .eq('order_id', orderId)
-    .in('status', ['pending', 'accepted', 'in_progress'])
+    .in('status', ['pending', 'accepted', 'in_progress', 'refused'])
 
   // Créer le nouvel assignment
   const { error } = await sa.from('order_assignments').insert({
