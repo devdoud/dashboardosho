@@ -334,6 +334,11 @@ export default function OrdersPage() {
                             <Scissors className="h-3 w-3 text-muted-foreground" />
                             <span>{tailorName}</span>
                           </div>
+                        ) : order.status === 'processing' ? (
+                          <div className="flex items-center gap-1.5 text-xs text-amber-600 font-medium">
+                            <AlertCircle className="h-3 w-3" />
+                            <span>À réassigner</span>
+                          </div>
                         ) : (
                           <span className="text-xs text-muted-foreground italic">Non assigné</span>
                         )}
@@ -577,9 +582,22 @@ export default function OrdersPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground rounded-lg border border-dashed p-3">
-                    <AlertCircle className="h-4 w-4" />
-                    Aucun tailleur assigné à cette commande
+                  <div className="space-y-3">
+                    {assignments[0]?.status === 'rejected' && (
+                      <div className="flex items-start gap-2.5 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+                        <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="font-semibold text-xs uppercase tracking-wide">Assignation refusée</p>
+                          <p className="text-xs text-destructive/95 mt-0.5">
+                            Le tailleur <strong>{assignments[0].tailor_name}</strong> a refusé cette commande.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground rounded-lg border border-dashed p-3">
+                      <AlertCircle className="h-4 w-4" />
+                      Aucun tailleur assigné à cette commande
+                    </div>
                   </div>
                 )}
 

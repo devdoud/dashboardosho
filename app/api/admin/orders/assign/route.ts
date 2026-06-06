@@ -74,14 +74,17 @@ export async function POST(request: NextRequest) {
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Passer la commande en "processing" si elle était encore "pending"
-  if (currentStatus === 'pending') {
-    await sa.from('orders').update({
-      status: 'processing',
-      primary_tailor_id: tailorId,
-      updated_at: now,
-    }).eq('id', orderId)
+  // Toujours mettre à jour le tailleur principal (primary_tailor_id) sur la commande.
+  // Passer la commande en "processing" si elle était encore "pending".
+  const orderUpdate: Record<string, any> = {
+    primary_tailor_id: tailorId,
+    updated_at: now,
   }
+  if (currentStatus === 'pending') {
+    orderUpdate.status = 'processing'
+  }
+
+  await sa.from('orders').update(orderUpdate).eq('id', orderId)
 
   return NextResponse.json({ ok: true })
 }
@@ -94,10 +97,26 @@ export async function DELETE(request: NextRequest) {
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const sa = adminClient()
+
+  // 1. Récupérer l'assignment pour connaître l'order_id
+  const { data: assignment } = await sa.from('order_assignments')
+    .select('order_id')
+    .eq('id', id)
+    .single()
+
+  // 2. Annuler l'assignment
   const { error } = await sa.from('order_assignments')
     .update({ status: 'cancelled', updated_at: new Date().toISOString() })
     .eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // 3. Mettre à jour la commande pour vider primary_tailor_id
+  if (assignment?.order_id) {
+    await sa.from('orders')
+      .update({ primary_tailor_id: null, updated_at: new Date().toISOString() })
+      .eq('id', assignment.order_id)
+  }
+
   return NextResponse.json({ ok: true })
 }
