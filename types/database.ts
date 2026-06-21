@@ -141,6 +141,12 @@ export interface FabricOption {
   image_url: string
 }
 
+/** Valeur textuelle bilingue (FR/EN) stockée en JSON */
+export interface I18nText {
+  fr: string
+  en: string
+}
+
 export interface Product {
   id: string
   name: string
@@ -154,11 +160,11 @@ export interface Product {
   fabric: string | null
   embroidery: string | null
   accessory: string | null
-  tags: string[] | null
+  tags: I18nText[] | null
   fabric_options: FabricOption[] | null
   embroidery_options: FabricOption[] | null
   finish_options: FabricOption[] | null
-  perfect_for: string[] | null
+  perfect_for: I18nText[] | null
   is_traditional: boolean | null
   traditional_origin: string | null
   difficulty: ProductDifficulty | null

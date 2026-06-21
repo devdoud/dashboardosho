@@ -130,3 +130,15 @@ export function serializeI18n(val: I18nValue): { fr: string; en: string } | null
   if (!val.fr.trim() && !val.en.trim()) return null
   return { fr: val.fr.trim(), en: val.en.trim() }
 }
+
+/** Parse une liste DB (array de strings/objets/null) → I18nValue[] */
+export function parseI18nArray(val: unknown): I18nValue[] {
+  if (!Array.isArray(val)) return []
+  return val.map(parseI18n).filter((v) => v.fr.trim() || v.en.trim())
+}
+
+/** Sérialise I18nValue[] → array d'objets JSON pour Supabase (null si vide) */
+export function serializeI18nArray(val: I18nValue[]): { fr: string; en: string }[] | null {
+  const out = val.map(serializeI18n).filter((v): v is { fr: string; en: string } => v !== null)
+  return out.length > 0 ? out : null
+}

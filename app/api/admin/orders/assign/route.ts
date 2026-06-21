@@ -58,11 +58,19 @@ export async function POST(request: NextRequest) {
   const sa = adminClient()
   const now = new Date().toISOString()
 
-  // Annuler les assignments actifs ou refusés
+  // Annuler les assignments actifs des autres tailleurs
   await sa.from('order_assignments')
     .update({ status: 'cancelled', updated_at: now })
     .eq('order_id', orderId)
-    .in('status', ['pending', 'accepted', 'in_progress', 'refused'])
+    .neq('tailor_id', tailorId)
+    .in('status', ['pending', 'accepted', 'in_progress'])
+
+  // Supprimer tout ancien assignment (refusé, annulé…) pour ce tailleur spécifique
+  // afin d'éviter un conflit de contrainte unique (order_id, tailor_id)
+  await sa.from('order_assignments')
+    .delete()
+    .eq('order_id', orderId)
+    .eq('tailor_id', tailorId)
 
   // Créer le nouvel assignment
   const { error } = await sa.from('order_assignments').insert({
@@ -72,7 +80,10 @@ export async function POST(request: NextRequest) {
     assigned_at: now,
     notes: notes || null,
   })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[assign] insert error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   // Toujours mettre à jour le tailleur principal (primary_tailor_id) sur la commande.
   // Passer la commande en "processing" si elle était encore "pending".

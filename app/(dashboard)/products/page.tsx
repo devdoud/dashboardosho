@@ -17,8 +17,8 @@ import type { Product, ProductInsert, Category } from '@/types/database'
 import { Search, Plus, Edit, Trash2, RefreshCw, Star, ChevronLeft, ChevronRight, Eye, Images, MapPin, Clock } from 'lucide-react'
 import Image from 'next/image'
 import { ImageUpload, MultiImageUpload } from '@/components/ui/image-upload'
-import { BilingualInput, parseI18n, serializeI18n, type I18nValue } from '@/components/ui/bilingual-input'
-import { TagInput } from '@/components/ui/tag-input'
+import { BilingualInput, parseI18n, serializeI18n, parseI18nArray, serializeI18nArray, type I18nValue } from '@/components/ui/bilingual-input'
+import { BilingualTagInput } from '@/components/ui/bilingual-tag-input'
 import { Separator } from '@/components/ui/separator'
 
 const PAGE_SIZE = 20
@@ -96,8 +96,8 @@ export default function ProductsPage() {
       estimated_days: product.estimated_days ?? undefined,
       thumbnail:      product.thumbnail ?? '',
       images:         (product.images as string[]) ?? [],
-      tags:           (product.tags as string[]) ?? [],
-      perfect_for:    (product.perfect_for as string[]) ?? [],
+      tags:           parseI18nArray(product.tags),
+      perfect_for:    parseI18nArray(product.perfect_for),
     })
     setTitleI18n(parseI18n(product.name))
     setDescI18n(parseI18n(product.description))
@@ -119,6 +119,8 @@ export default function ProductsPage() {
       name:               serializeI18n(titleI18n) ?? titleI18n,
       description:        serializeI18n(descI18n),
       traditional_origin: serializeI18n(originI18n),
+      tags:               serializeI18nArray((form.tags as I18nValue[]) ?? []),
+      perfect_for:        serializeI18nArray((form.perfect_for as I18nValue[]) ?? []),
     }
 
     const res = editProduct
@@ -369,24 +371,24 @@ export default function ProductsPage() {
                 )}
 
                 {/* Tags */}
-                {((viewProduct.tags as string[]) ?? []).length > 0 && (
+                {((viewProduct.tags as I18nValue[]) ?? []).length > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tags</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {(viewProduct.tags as string[]).map((t) => (
-                        <span key={t} className="px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium">{t}</span>
+                      {(viewProduct.tags as I18nValue[]).map((t, i) => (
+                        <span key={i} className="px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium">{getLabel(t)}</span>
                       ))}
                     </div>
                   </div>
                 )}
 
                 {/* Perfect for */}
-                {((viewProduct.perfect_for as string[]) ?? []).length > 0 && (
+                {((viewProduct.perfect_for as I18nValue[]) ?? []).length > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Perfect for</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {(viewProduct.perfect_for as string[]).map((t) => (
-                        <span key={t} className="px-2.5 py-1 rounded-md border border-border bg-muted/40 text-xs font-medium">{t}</span>
+                      {(viewProduct.perfect_for as I18nValue[]).map((t, i) => (
+                        <span key={i} className="px-2.5 py-1 rounded-md border border-border bg-muted/40 text-xs font-medium">{getLabel(t)}</span>
                       ))}
                     </div>
                   </div>
@@ -513,22 +515,41 @@ export default function ProductsPage() {
             {/* ── Tags ── */}
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Tags</Label>
-              <TagInput
-                value={(form.tags as string[]) ?? []}
+              <BilingualTagInput
+                value={(form.tags as I18nValue[]) ?? []}
                 onChange={(tags) => setForm((f) => ({ ...f, tags }))}
-                suggestions={['Mariage', 'Cérémonie', 'Traditionnel', 'Nouveauté', 'Promo', 'Exclusif', 'Limité', 'Tendance']}
-                placeholder="Ajouter un tag…"
+                suggestions={[
+                  { fr: 'Mariage', en: 'Wedding' },
+                  { fr: 'Cérémonie', en: 'Ceremony' },
+                  { fr: 'Traditionnel', en: 'Traditional' },
+                  { fr: 'Nouveauté', en: 'New' },
+                  { fr: 'Promo', en: 'Sale' },
+                  { fr: 'Exclusif', en: 'Exclusive' },
+                  { fr: 'Limité', en: 'Limited' },
+                  { fr: 'Tendance', en: 'Trending' },
+                ]}
+                placeholder={{ fr: 'Ajouter un tag…', en: 'Add a tag…' }}
               />
             </div>
 
             {/* ── Perfect for ── */}
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Perfect for</Label>
-              <TagInput
-                value={(form.perfect_for as string[]) ?? []}
+              <BilingualTagInput
+                value={(form.perfect_for as I18nValue[]) ?? []}
                 onChange={(perfect_for) => setForm((f) => ({ ...f, perfect_for }))}
-                suggestions={['Mariage', 'Baptême', 'Cérémonie', 'Soirée', 'Bureau', 'Fête', 'Quotidien', 'Ramadan', 'Noël']}
-                placeholder="Ajouter une occasion…"
+                suggestions={[
+                  { fr: 'Mariage', en: 'Wedding' },
+                  { fr: 'Baptême', en: 'Christening' },
+                  { fr: 'Cérémonie', en: 'Ceremony' },
+                  { fr: 'Soirée', en: 'Evening' },
+                  { fr: 'Bureau', en: 'Office' },
+                  { fr: 'Fête', en: 'Party' },
+                  { fr: 'Quotidien', en: 'Everyday' },
+                  { fr: 'Ramadan', en: 'Ramadan' },
+                  { fr: 'Noël', en: 'Christmas' },
+                ]}
+                placeholder={{ fr: 'Ajouter une occasion…', en: 'Add an occasion…' }}
               />
             </div>
 
