@@ -253,8 +253,16 @@ export default function OrdersPage() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const activeAssignment = assignments.find((a) => ['pending', 'accepted', 'in_progress'].includes(a.status))
+  const completedAssignment = assignments.find((a) => a.status === 'completed')
   // La commande a été terminée par un tailleur → elle peut être expédiée
-  const hasCompletedAssignment = assignments.some((a) => a.status === 'completed')
+  const hasCompletedAssignment = !!completedAssignment
+  // Tailleur à afficher : celui en cours, sinon celui qui a terminé la commande
+  const currentAssignment = activeAssignment ?? completedAssignment
+  const canCancelAssignment = !!activeAssignment
+  // Historique : les assignments terminés/refusés/annulés, hors celui déjà affiché en tête
+  const historyAssignments = assignments.filter(
+    (a) => ['rejected', 'cancelled', 'completed'].includes(a.status) && a.id !== currentAssignment?.id,
+  )
 
   return (
     <div className="space-y-6">
@@ -592,7 +600,7 @@ export default function OrdersPage() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Chargement…
                   </div>
-                ) : activeAssignment ? (
+                ) : currentAssignment ? (
                   <div className="rounded-lg border p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -600,15 +608,15 @@ export default function OrdersPage() {
                           <Scissors className="h-4 w-4 text-primary" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium">{activeAssignment.tailor_name}</p>
+                          <p className="text-sm font-medium">{currentAssignment.tailor_name}</p>
                           <p className="text-xs text-muted-foreground">
-                            Assigné le {formatDateTime(activeAssignment.assigned_at)}
+                            Assigné le {formatDateTime(currentAssignment.assigned_at)}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         {(() => {
-                          const s = ASSIGNMENT_STATUS_BADGE[activeAssignment.status] ?? { label: activeAssignment.status, variant: 'outline' as const, icon: Clock }
+                          const s = ASSIGNMENT_STATUS_BADGE[currentAssignment.status] ?? { label: currentAssignment.status, variant: 'outline' as const, icon: Clock }
                           const Icon = s.icon
                           return (
                             <Badge variant={s.variant} className="flex items-center gap-1">
@@ -617,19 +625,21 @@ export default function OrdersPage() {
                             </Badge>
                           )
                         })()}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive h-7 px-2 text-xs"
-                          onClick={() => cancelAssignment(activeAssignment.id)}
-                        >
-                          Annuler
-                        </Button>
+                        {canCancelAssignment && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive h-7 px-2 text-xs"
+                            onClick={() => cancelAssignment(currentAssignment.id)}
+                          >
+                            Annuler
+                          </Button>
+                        )}
                       </div>
                     </div>
-                    {activeAssignment.notes && (
+                    {currentAssignment.notes && (
                       <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
-                        {activeAssignment.notes}
+                        {currentAssignment.notes}
                       </p>
                     )}
                   </div>
@@ -721,14 +731,13 @@ export default function OrdersPage() {
                 </div>
 
                 {/* Historique des assignments */}
-                {assignments.filter((a) => ['rejected', 'cancelled', 'completed'].includes(a.status)).length > 0 && (
+                {historyAssignments.length > 0 && (
                   <details className="group">
                     <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground select-none">
-                      Voir l&apos;historique ({assignments.filter((a) => ['rejected', 'cancelled', 'completed'].includes(a.status)).length})
+                      Voir l&apos;historique ({historyAssignments.length})
                     </summary>
                     <div className="mt-2 space-y-1.5">
-                      {assignments
-                        .filter((a) => ['rejected', 'cancelled', 'completed'].includes(a.status))
+                      {historyAssignments
                         .map((a) => {
                           const s = ASSIGNMENT_STATUS_BADGE[a.status] ?? { label: a.status, variant: 'outline' as const, icon: Clock }
                           const Icon = s.icon
