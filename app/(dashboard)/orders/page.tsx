@@ -98,10 +98,15 @@ interface CustomerInfo {
   phone: string
 }
 
+// Le tailleur responsable est résolu côté serveur (primary_tailor_id + assignations)
+interface OrderRow extends Order {
+  tailor_name?: string | null
+}
+
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([])
+  const [orders, setOrders] = useState<OrderRow[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
   const [search, setSearch] = useState('')
@@ -337,9 +342,8 @@ export default function OrdersPage() {
                 orders.map((order) => {
                   const os = ORDER_STATUS_BADGE[order.status]   ?? { label: order.status   ?? '—', variant: 'outline' as const }
                   const ps = PAYMENT_STATUS_BADGE[order.payment_status] ?? { label: order.payment_status ?? '—', variant: 'outline' as const }
-                  const tailorName = order.primary_tailor_id
-                    ? tailors.find((t) => t.id === order.primary_tailor_id)?.name
-                    : null
+                  const tailorName = order.tailor_name
+                    ?? (order.primary_tailor_id ? tailors.find((t) => t.id === order.primary_tailor_id)?.name : null)
                   return (
                     <TableRow key={order.id}>
                       <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}…</TableCell>
