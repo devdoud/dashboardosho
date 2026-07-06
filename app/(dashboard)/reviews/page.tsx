@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { awaitQuery } from '@/lib/supabase/query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,8 +15,13 @@ import {
 const PAGE_SIZE = 12
 
 interface ReviewWithDetails extends TailorReview {
-  tailor_name?: string
-  customer_name?: string
+  tailor_name?: string | null
+  customer_name?: string | null
+}
+
+/** Nom lisible, avec repli propre sur un identifiant court plutôt que l'UUID brut */
+function displayName(name: string | null | undefined, id: string, role: 'Tailleur' | 'Client') {
+  return name || `${role} ${id.slice(0, 6)}`
 }
 
 function StarRating({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'lg' }) {
@@ -65,7 +68,6 @@ function GradientAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md
 }
 
 export default function ReviewsPage() {
-  const supabase = createClient()
   const [reviews, setReviews] = useState<ReviewWithDetails[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
@@ -80,54 +82,30 @@ export default function ReviewsPage() {
 
   const fetchReviews = useCallback(async () => {
     setLoading(true)
-    let query = supabase
-      .from('tailor_reviews')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
-
-    if (ratingFilter !== 'all') query = query.eq('rating', parseInt(ratingFilter))
-
-    const { data, count } = await awaitQuery<TailorReview>(query)
-    const reviewData = data ?? []
-
-    const tailorIds = [...new Set(reviewData.map((r) => r.tailor_id))]
-    const customerIds = [...new Set(reviewData.map((r) => r.customer_id))]
-    const allIds = [...new Set([...tailorIds, ...customerIds])]
-
-    const { data: addresses } = await supabase
-      .from('addresses')
-      .select('user_id, full_name')
-      .in('user_id', allIds)
-      .eq('is_default', true)
-
-    const nameMap: Record<string, string> = {}
-    for (const a of addresses ?? []) nameMap[a.user_id] = a.full_name
-
-    const enriched: ReviewWithDetails[] = reviewData
-      .filter((r) => !search || (r.review_text ?? '').toLowerCase().includes(search.toLowerCase()))
-      .map((r) => ({ ...r, tailor_name: nameMap[r.tailor_id], customer_name: nameMap[r.customer_id] }))
-
-    setReviews(enriched)
-    setTotal(count ?? 0)
-
-    // Stats globales (sans filtre)
-    const { data: allRatings } = await supabase.from('tailor_reviews').select('rating')
-    if (allRatings && allRatings.length > 0) {
-      setAvgRating(allRatings.reduce((s, r) => s + r.rating, 0) / allRatings.length)
-      setGlobalTotal(allRatings.length)
-      const dist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
-      for (const r of allRatings) dist[r.rating] = (dist[r.rating] ?? 0) + 1
-      setRatingDist(dist)
+    const params = new URLSearchParams({
+      page: String(page),
+      rating: ratingFilter,
+      ...(search ? { search } : {}),
+    })
+    const res = await fetch(`/api/admin/reviews?${params}`)
+    if (res.ok) {
+      const json = await res.json()
+      setReviews(json.reviews ?? [])
+      setTotal(json.total ?? 0)
+      setAvgRating(json.stats?.avg ?? 0)
+      setGlobalTotal(json.stats?.total ?? 0)
+      setRatingDist(json.stats?.dist ?? {})
     }
-
     setLoading(false)
-  }, [page, ratingFilter, search, supabase])
+  }, [page, ratingFilter, search])
 
-  useEffect(() => { fetchReviews() }, [fetchReviews])
+  useEffect(() => {
+    const t = setTimeout(fetchReviews, search ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [fetchReviews, search])
 
   async function handleDelete(id: string) {
-    await supabase.from('tailor_reviews').delete().eq('id', id)
+    await fetch(`/api/admin/reviews?id=${id}`, { method: 'DELETE' })
     setDeleteId(null)
     fetchReviews()
   }
@@ -261,9 +239,10 @@ export default function ReviewsPage() {
               return (
                 <Card
                   key={review.id}
-                  className="group cursor-pointer hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
+                  className="group cursor-pointer overflow-hidden hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
                   onClick={() => setSelectedReview(review)}
                 >
+                  <div className={`h-1 w-full ${cfg.barBg}`} />
                   <CardContent className="p-5 flex flex-col gap-3">
                     {/* Top: étoiles + date */}
                     <div className="flex items-center justify-between">
@@ -282,26 +261,28 @@ export default function ReviewsPage() {
                     </div>
 
                     {/* Footer: client → tailleur */}
-                    <div className="flex items-center justify-between gap-2 pt-3 border-t">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <GradientAvatar name={review.customer_name ?? review.customer_id} size="sm" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium truncate leading-tight">
-                            {review.customer_name ?? review.customer_id.slice(0, 8)}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">Client</p>
+                    {(() => {
+                      const customer = displayName(review.customer_name, review.customer_id, 'Client')
+                      const tailor = displayName(review.tailor_name, review.tailor_id, 'Tailleur')
+                      return (
+                        <div className="flex items-center justify-between gap-2 pt-3 border-t">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <GradientAvatar name={customer} size="sm" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium truncate leading-tight">{customer}</p>
+                              <p className="text-[10px] text-muted-foreground">Client</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="min-w-0 text-right">
+                              <p className="text-xs font-medium truncate leading-tight">{tailor}</p>
+                              <p className="text-[10px] text-muted-foreground">Tailleur</p>
+                            </div>
+                            <GradientAvatar name={tailor} size="sm" />
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="min-w-0 text-right">
-                          <p className="text-xs font-medium truncate leading-tight">
-                            {review.tailor_name ?? review.tailor_id.slice(0, 8)}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">Tailleur</p>
-                        </div>
-                        <GradientAvatar name={review.tailor_name ?? review.tailor_id} size="sm" />
-                      </div>
-                    </div>
+                      )
+                    })()}
                   </CardContent>
                 </Card>
               )
@@ -349,14 +330,14 @@ export default function ReviewsPage() {
                 {/* Personnes */}
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: 'Client', name: selectedReview.customer_name ?? selectedReview.customer_id },
-                    { label: 'Tailleur', name: selectedReview.tailor_name ?? selectedReview.tailor_id },
+                    { label: 'Client' as const, name: displayName(selectedReview.customer_name, selectedReview.customer_id, 'Client') },
+                    { label: 'Tailleur' as const, name: displayName(selectedReview.tailor_name, selectedReview.tailor_id, 'Tailleur') },
                   ].map(({ label, name }) => (
-                    <div key={label} className="rounded-xl border bg-muted/30 p-3 flex items-center gap-3">
+                    <div key={label} className="rounded-xl border bg-muted/30 p-3 flex items-center gap-3 min-w-0">
                       <GradientAvatar name={name} size="md" />
                       <div className="min-w-0">
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-                        <p className="text-sm font-medium truncate">{name.length > 20 ? name.slice(0, 8) + '…' : name}</p>
+                        <p className="text-sm font-medium truncate" title={name}>{name}</p>
                       </div>
                     </div>
                   ))}

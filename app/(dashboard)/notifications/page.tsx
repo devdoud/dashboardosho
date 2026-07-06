@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import {
   Bell, Send, Users, User, Scissors,
@@ -79,7 +78,7 @@ export default function NotificationsPage() {
   const [result, setResult]     = useState<SendResult | null>(null)
   const [tokenCount, setTokenCount] = useState<number | null>(null)
   const [userSearch, setUserSearch] = useState('')
-  const [userSuggestions, setUserSuggestions] = useState<{ id: string; name: string }[]>([])
+  const [userSuggestions, setUserSuggestions] = useState<{ id: string; name: string; email?: string }[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
 
   // Stats tokens
@@ -87,22 +86,18 @@ export default function NotificationsPage() {
     supabase.from('fcm_tokens').select('*', { count: 'exact', head: true }).then(({ count }) => setTokenCount(count ?? 0))
   }, [supabase])
 
-  // Recherche utilisateur
+  // Recherche utilisateur (nom ou email, résolus côté serveur)
   useEffect(() => {
     if (!userSearch || userSearch.length < 2) { setUserSuggestions([]); return }
     setLoadingUsers(true)
     const timeout = setTimeout(async () => {
-      const { data } = await supabase
-        .from('addresses')
-        .select('user_id, full_name')
-        .ilike('full_name', `%${userSearch}%`)
-        .eq('is_default', true)
-        .limit(5)
-      setUserSuggestions((data ?? []).map((a) => ({ id: a.user_id, name: a.full_name })))
+      const res = await fetch(`/api/admin/notifications?search=${encodeURIComponent(userSearch)}`)
+      const json = res.ok ? await res.json() : { users: [] }
+      setUserSuggestions(json.users ?? [])
       setLoadingUsers(false)
     }, 350)
     return () => clearTimeout(timeout)
-  }, [userSearch, supabase])
+  }, [userSearch])
 
   function applyTemplate(tpl: typeof TEMPLATES[0]) {
     setTitle(tpl.title)
@@ -139,7 +134,6 @@ export default function NotificationsPage() {
   }
 
   const canSend = title.trim() && body.trim() && (target !== 'user' || userId.trim())
-  const targetOption = TARGET_OPTIONS.find((t) => t.value === target)!
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -209,14 +203,16 @@ export default function NotificationsPage() {
                       {userSuggestions.map((u) => (
                         <button key={u.id} className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/50 transition-colors"
                           onClick={() => { setUserId(u.id); setUserSearch(u.name); setUserSuggestions([]) }}>
-                          <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0">
+                          <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0 uppercase">
                             {u.name[0]}
                           </div>
-                          <div>
-                            <p className="text-sm font-medium">{u.name}</p>
-                            <p className="text-xs text-muted-foreground font-mono">{u.id.slice(0, 12)}…</p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{u.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {u.email || `${u.id.slice(0, 12)}…`}
+                            </p>
                           </div>
-                          {userId === u.id && <CheckCircle className="h-4 w-4 text-primary ml-auto" />}
+                          {userId === u.id && <CheckCircle className="h-4 w-4 text-primary ml-auto shrink-0" />}
                         </button>
                       ))}
                     </div>
@@ -383,15 +379,6 @@ export default function NotificationsPage() {
             </div>
           )}
 
-          {/* Info */}
-          <div className="rounded-lg bg-muted/50 border p-3 space-y-1.5">
-            <p className="text-xs font-semibold">À savoir</p>
-            <ul className="text-[11px] text-muted-foreground space-y-1">
-              <li>• L&apos;utilisateur doit avoir autorisé les notifications</li>
-              <li>• Un token FCM doit être enregistré dans la table <code className="bg-muted px-1 rounded">fcm_tokens</code></li>
-              <li>• Les envois en masse sont traités en parallèle</li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>
