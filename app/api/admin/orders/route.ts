@@ -54,12 +54,29 @@ export async function PATCH(request: NextRequest) {
   const { id, status, payment_status, primary_tailor_id } = await request.json()
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
+  const sa = adminClient()
+
+  // Garde-fou : on ne peut expédier une commande que si le tailleur l'a terminée
+  if (status === 'shipped') {
+    const { data: completed } = await sa
+      .from('order_assignments')
+      .select('id')
+      .eq('order_id', id)
+      .eq('status', 'completed')
+      .limit(1)
+    if (!completed || completed.length === 0) {
+      return NextResponse.json(
+        { error: "La commande doit d'abord être terminée par le tailleur avant d'être expédiée." },
+        { status: 409 },
+      )
+    }
+  }
+
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (status !== undefined)           patch.status = status
   if (payment_status !== undefined)   patch.payment_status = payment_status
   if (primary_tailor_id !== undefined) patch.primary_tailor_id = primary_tailor_id
 
-  const sa = adminClient()
   const { error } = await sa.from('orders').update(patch).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

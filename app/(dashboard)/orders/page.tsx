@@ -15,7 +15,7 @@ import { formatCurrency, formatDateTime, getLabel } from '@/lib/utils'
 import type { Order, OrderStatus, PaymentStatus, OrderAssignment, AssignmentStatus } from '@/types/database'
 import {
   Search, Eye, RefreshCw, ChevronLeft, ChevronRight,
-  Scissors, CheckCircle, XCircle, Clock, AlertCircle, Loader2, Package, MessageSquare, User,
+  Scissors, CheckCircle, XCircle, Clock, AlertCircle, Loader2, Package, MessageSquare, User, Truck,
 } from 'lucide-react'
 import Image from 'next/image'
 
@@ -110,6 +110,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [statusError, setStatusError] = useState<string | null>(null)
 
   // Order items state
   const [orderItems, setOrderItems] = useState<OrderItemWithProduct[]>([])
@@ -190,6 +191,7 @@ export default function OrdersPage() {
     setSelectedOrder(order)
     setSelectedTailor('')
     setAssignmentNotes('')
+    setStatusError(null)
     setOrderItems([])
     setCustomer(null)
     fetchDetail(order.id, order.user_id)
@@ -200,11 +202,18 @@ export default function OrdersPage() {
 
   async function updateOrderStatus(orderId: string, status: OrderStatus) {
     setUpdatingId(orderId)
-    await fetch('/api/admin/orders', {
+    setStatusError(null)
+    const res = await fetch('/api/admin/orders', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: orderId, status }),
     })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      setStatusError(d.error ?? 'Erreur lors de la mise à jour du statut')
+      setUpdatingId(null)
+      return
+    }
     await fetchOrders()
     if (selectedOrder?.id === orderId) {
       setSelectedOrder((prev) => prev ? { ...prev, status } : null)
@@ -244,6 +253,8 @@ export default function OrdersPage() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const activeAssignment = assignments.find((a) => ['pending', 'accepted', 'in_progress'].includes(a.status))
+  // La commande a été terminée par un tailleur → elle peut être expédiée
+  const hasCompletedAssignment = assignments.some((a) => a.status === 'completed')
 
   return (
     <div className="space-y-6">
@@ -421,20 +432,25 @@ export default function OrdersPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1.5">Statut commande</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {(['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as OrderStatus[]).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => updateOrderStatus(selectedOrder.id, s)}
-                        disabled={updatingId === selectedOrder.id}
-                        className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
-                          selectedOrder.status === s
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-background hover:bg-muted border-border'
-                        }`}
-                      >
-                        {ORDER_STATUS_BADGE[s].label}
-                      </button>
-                    ))}
+                    {(['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as OrderStatus[]).map((s) => {
+                      // « Expédié » est verrouillé tant que le tailleur n'a pas terminé la commande
+                      const shipLocked = s === 'shipped' && !hasCompletedAssignment && selectedOrder.status !== 'shipped'
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => updateOrderStatus(selectedOrder.id, s)}
+                          disabled={updatingId === selectedOrder.id || shipLocked}
+                          title={shipLocked ? 'La commande doit être terminée par le tailleur' : undefined}
+                          className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                            selectedOrder.status === s
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-background hover:bg-muted border-border'
+                          } ${shipLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
+                        >
+                          {ORDER_STATUS_BADGE[s].label}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
                 <div>
@@ -444,6 +460,42 @@ export default function OrdersPage() {
                   </Badge>
                 </div>
               </div>
+
+              {/* ── Action expédition ── */}
+              {!['shipped', 'delivered', 'cancelled'].includes(selectedOrder.status) && (
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                  <Button
+                    className="w-full"
+                    disabled={!hasCompletedAssignment || updatingId === selectedOrder.id}
+                    onClick={() => updateOrderStatus(selectedOrder.id, 'shipped')}
+                  >
+                    {updatingId === selectedOrder.id
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Truck className="h-4 w-4" />}
+                    Marquer comme expédié
+                  </Button>
+                  {!hasCompletedAssignment && (
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                      Disponible une fois la commande terminée par le tailleur.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {selectedOrder.status === 'shipped' && (
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  <Truck className="h-4 w-4 shrink-0" />
+                  Commande expédiée — visible dans le suivi du client.
+                </div>
+              )}
+
+              {statusError && (
+                <div className="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  {statusError}
+                </div>
+              )}
 
               {/* ── Note du client ── */}
               {selectedOrder.customer_note && (
