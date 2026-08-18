@@ -1,27 +1,12 @@
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextResponse, type NextRequest } from 'next/server'
-
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
-}
-
-async function requireAdmin() {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const sa = adminClient()
-  const { data } = await sa.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').single()
-  return data ? user : null
-}
+import { adminClient, guardAdmin, listAllUsers } from '@/lib/supabase/admin'
+import { parseBody, orderAssignSchema } from '@/lib/validation'
+import type { OrderUpdate } from '@/types/database'
 
 /** GET /api/admin/orders/assign — liste des tailleurs disponibles */
 export async function GET() {
-  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await guardAdmin('read')
+  if (!guard.ok) return guard.response
 
   const sa = adminClient()
   const { data: roles } = await sa.from('user_roles').select('user_id').eq('role', 'tailor')
@@ -31,12 +16,12 @@ export async function GET() {
 
   const [addrRes, authRes] = await Promise.all([
     sa.from('addresses').select('user_id, full_name').in('user_id', ids).eq('is_default', true),
-    sa.auth.admin.listUsers({ perPage: 1000 }),
+    listAllUsers(sa),
   ])
 
   const nameMap: Record<string, string> = {}
   for (const a of addrRes.data ?? []) nameMap[a.user_id] = a.full_name
-  for (const u of authRes.data?.users ?? []) {
+  for (const u of authRes) {
     if (ids.includes(u.id) && !nameMap[u.id]) {
       const meta = u.user_metadata as Record<string, string> | undefined
       nameMap[u.id] = meta?.full_name || meta?.name || u.email?.split('@')[0] || u.id.slice(0, 6)
@@ -50,10 +35,12 @@ export async function GET() {
 
 /** POST /api/admin/orders/assign — assigner un tailleur */
 export async function POST(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await guardAdmin('write')
+  if (!guard.ok) return guard.response
 
-  const { orderId, tailorId, notes, currentStatus } = await request.json()
-  if (!orderId || !tailorId) return NextResponse.json({ error: 'orderId and tailorId required' }, { status: 400 })
+  const { data: body, response } = await parseBody(request, orderAssignSchema)
+  if (response) return response
+  const { orderId, tailorId, notes, currentStatus } = body
 
   const sa = adminClient()
   const now = new Date().toISOString()
@@ -85,49 +72,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Toujours mettre à jour le tailleur principal (primary_tailor_id) sur la commande.
-  // Passer la commande en "processing" si elle était encore "pending".
-  const orderUpdate: Record<string, any> = {
-    primary_tailor_id: tailorId,
-    updated_at: now,
-  }
+  // `primary_tailor_id` n'est PAS écrit ici : le trigger `sync_order_primary_tailor`
+  // (migrations/006) est la source de vérité unique et l'a déjà recalculé sur l'INSERT
+  // ci-dessus. L'écrire aussi depuis la route créait deux écritures concurrentes.
+  // Seule la transition pending → processing reste du ressort de l'application.
   if (currentStatus === 'pending') {
-    orderUpdate.status = 'processing'
+    const patch: OrderUpdate = { status: 'processing', updated_at: now }
+    await sa.from('orders').update(patch).eq('id', orderId)
   }
-
-  await sa.from('orders').update(orderUpdate).eq('id', orderId)
 
   return NextResponse.json({ ok: true })
 }
 
 /** DELETE /api/admin/orders/assign?id=xxx — annuler un assignment */
 export async function DELETE(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await guardAdmin('write')
+  if (!guard.ok) return guard.response
 
   const id = new URL(request.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const sa = adminClient()
 
-  // 1. Récupérer l'assignment pour connaître l'order_id
-  const { data: assignment } = await sa.from('order_assignments')
-    .select('order_id')
-    .eq('id', id)
-    .single()
-
-  // 2. Annuler l'assignment
+  // Annuler l'assignment — le trigger `sync_order_primary_tailor` remet
+  // `orders.primary_tailor_id` à jour tout seul.
   const { error } = await sa.from('order_assignments')
     .update({ status: 'cancelled', updated_at: new Date().toISOString() })
     .eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // 3. Mettre à jour la commande pour vider primary_tailor_id
-  if (assignment?.order_id) {
-    await sa.from('orders')
-      .update({ primary_tailor_id: null, updated_at: new Date().toISOString() })
-      .eq('id', assignment.order_id)
-  }
 
   return NextResponse.json({ ok: true })
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { Star, Mail, Phone, MapPin, Instagram, Facebook, Ruler, Palette, Scissors, Radio, ShieldCheck, Package, Clock, CheckCircle, type LucideIcon } from 'lucide-react'
+import { Star, Mail, Phone, MapPin, Instagram, Facebook, Ruler, Palette, Scissors, Radio, ShieldCheck, Package, Clock, CheckCircle } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react'
 
 // ─── Hook : détecte quand un élément entre dans le viewport ──────────────────
@@ -35,25 +35,6 @@ function Reveal({ children, delay = 0, className }: { children: ReactNode; delay
   )
 }
 
-// ─── Compteur animé ───────────────────────────────────────────────────────────
-function Counter({ target, suffix = '' }: { target: number; suffix?: string }) {
-  const { ref, visible } = useInView(0.3)
-  const [count, setCount] = useState(0)
-  useEffect(() => {
-    if (!visible) return
-    const duration = 1400
-    const steps = 50
-    const increment = target / steps
-    let current = 0
-    const timer = setInterval(() => {
-      current += increment
-      if (current >= target) { setCount(target); clearInterval(timer) }
-      else setCount(Math.floor(current))
-    }, duration / steps)
-    return () => clearInterval(timer)
-  }, [visible, target])
-  return <span ref={ref}>{count.toLocaleString()}{suffix}</span>
-}
 
 // ─── Tokens ──────────────────────────────────────────────────────────────────
 const C = {
@@ -713,14 +694,6 @@ const STEPS = [
   { n: '04', t: 'Receive',     b: 'Your creation is delivered to your door, carefully and securely packaged.' },
 ]
 
-const PRODUCTS = [
-  { name: 'Thiop Royal Prestige', price: '$358', category: 'Couple', bg: '#EDE0D4', badge: '⭐ Vedette' },
-  { name: 'Royale Kaftan VIP',    price: '$390', category: 'Woman',  bg: '#EDE8DC', badge: null },
-  { name: 'Grand Boubou Bazin',   price: '$275', category: 'Man',    bg: '#D8E4ED', badge: 'Nouveau' },
-  { name: 'Ensemble Wax Couple',  price: '$520', category: 'Couple', bg: '#E8E0D4', badge: '🔥 Top vente' },
-  { name: 'Caftan Brodé Premium', price: '$445', category: 'Woman',  bg: '#EDE0DC', badge: null },
-  { name: 'Agbada Prestige',      price: '$310', category: 'Man',    bg: '#D8EDE4', badge: null },
-]
 
 const FEATURES = [
   { icon: Ruler,      iconBg: '#EFF6FF', iconColor: '#3B82F6', title: 'Precise measurements',   body: 'Save your profile once. Every garment tailored exactly to your body dimensions.' },

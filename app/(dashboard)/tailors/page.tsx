@@ -81,7 +81,10 @@ export default function TailorsPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchTailors() }, [fetchTailors])
+  useEffect(() => {
+    const t = setTimeout(fetchTailors, search ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [fetchTailors, search])
 
   // ─── Détail tailleur ──────────────────────────────────────────────────────
 

@@ -72,7 +72,10 @@ export default function UsersPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchUsers() }, [fetchUsers])
+  useEffect(() => {
+    const t = setTimeout(fetchUsers, search ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [fetchUsers, search])
 
   // ─── Ouvrir le dialog ─────────────────────────────────────────────────────
   function openUser(user: AuthUser) {
@@ -293,7 +296,7 @@ export default function UsersPage() {
       <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
         <DialogContent className="max-w-md" aria-describedby={undefined}>
           <DialogHeader>
-            <DialogTitle>Modifier l'utilisateur</DialogTitle>
+            <DialogTitle>Modifier l&apos;utilisateur</DialogTitle>
           </DialogHeader>
 
           {selectedUser && (

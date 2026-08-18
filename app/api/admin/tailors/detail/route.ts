@@ -1,27 +1,10 @@
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextResponse, type NextRequest } from 'next/server'
-
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
-}
-
-async function requireAdmin() {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const sa = adminClient()
-  const { data } = await sa.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').single()
-  return data ? user : null
-}
+import { adminClient, guardAdmin } from '@/lib/supabase/admin'
 
 /** GET /api/admin/tailors/detail?tailorId=xxx */
 export async function GET(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await guardAdmin('read')
+  if (!guard.ok) return guard.response
 
   const tailorId = new URL(request.url).searchParams.get('tailorId')
   if (!tailorId) return NextResponse.json({ error: 'tailorId required' }, { status: 400 })

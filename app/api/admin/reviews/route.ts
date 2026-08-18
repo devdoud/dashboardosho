@@ -1,23 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextResponse, type NextRequest } from 'next/server'
-
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
-}
-
-async function requireAdmin() {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const sa = adminClient()
-  const { data } = await sa.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').single()
-  return data ? user : null
-}
+import { adminClient, guardAdmin, parsePage, escapeLike, listAllUsers } from '@/lib/supabase/admin'
+import type { TailorReview } from '@/types/database'
 
 const PAGE_SIZE = 12
 
@@ -25,10 +8,11 @@ const PAGE_SIZE = 12
  *  Retourne { reviews (enrichis des noms), total, stats }
  */
 export async function GET(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await guardAdmin('read')
+  if (!guard.ok) return guard.response
 
   const { searchParams } = new URL(request.url)
-  const page   = parseInt(searchParams.get('page') ?? '0')
+  const page   = parsePage(searchParams.get('page'))
   const rating = searchParams.get('rating') ?? 'all'
   const search = (searchParams.get('search') ?? '').trim()
 
@@ -40,13 +24,14 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false })
     .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
-  if (rating !== 'all') query = query.eq('rating', parseInt(rating))
-  if (search)           query = query.ilike('review_text', `%${search}%`)
+  const ratingNum = Number.parseInt(rating, 10)
+  if (rating !== 'all' && ratingNum >= 1 && ratingNum <= 5) query = query.eq('rating', ratingNum)
+  if (search)           query = query.ilike('review_text', `%${escapeLike(search)}%`)
 
   const { data, count, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const reviewData = (data ?? []) as Array<Record<string, any>>
+  const reviewData = (data ?? []) as TailorReview[]
 
   // ── Résolution des noms (adresse par défaut → métadonnées auth → email) ──────
   const ids = [...new Set([
@@ -59,10 +44,10 @@ export async function GET(request: NextRequest) {
   if (ids.length > 0) {
     const [addrRes, authRes] = await Promise.all([
       sa.from('addresses').select('user_id, full_name').in('user_id', ids).eq('is_default', true),
-      sa.auth.admin.listUsers({ perPage: 1000 }),
+      listAllUsers(sa),
     ])
     for (const a of addrRes.data ?? []) if (a.full_name) addrMap[a.user_id] = a.full_name
-    for (const u of authRes.data?.users ?? []) {
+    for (const u of authRes) {
       if (ids.includes(u.id)) {
         const meta = u.user_metadata as Record<string, string> | undefined
         authMap[u.id] = meta?.full_name || meta?.name || u.email?.split('@')[0] || ''
@@ -80,14 +65,27 @@ export async function GET(request: NextRequest) {
   }))
 
   // ── Stats globales (toutes les notes, sans filtre) ───────────────────────────
-  const { data: allRatings } = await sa.from('tailor_reviews').select('rating')
+  // Un COUNT par note plutôt qu'un chargement intégral de la table à chaque
+  // changement de page : cinq compteurs indexés suffisent à la distribution
+  // comme à la moyenne.
+  const counts = await Promise.all(
+    [1, 2, 3, 4, 5].map(async (rating) => {
+      const { count } = await sa
+        .from('tailor_reviews')
+        .select('*', { count: 'exact', head: true })
+        .eq('rating', rating)
+      return [rating, count ?? 0] as const
+    }),
+  )
+
   const dist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
   let sum = 0
-  for (const r of allRatings ?? []) {
-    dist[r.rating] = (dist[r.rating] ?? 0) + 1
-    sum += r.rating
+  let globalTotal = 0
+  for (const [rating, n] of counts) {
+    dist[rating] = n
+    sum += rating * n
+    globalTotal += n
   }
-  const globalTotal = allRatings?.length ?? 0
   const avg = globalTotal > 0 ? sum / globalTotal : 0
 
   return NextResponse.json({
@@ -99,7 +97,8 @@ export async function GET(request: NextRequest) {
 
 /** DELETE /api/admin/reviews?id=xxx — supprimer un avis */
 export async function DELETE(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await guardAdmin('write')
+  if (!guard.ok) return guard.response
 
   const id = new URL(request.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })

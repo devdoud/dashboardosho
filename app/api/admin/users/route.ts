@@ -1,44 +1,22 @@
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextResponse, type NextRequest } from 'next/server'
-
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
-
-function checkSuperAdmin(email: string | undefined) {
-  return !!email && email === process.env.SUPER_ADMIN_EMAIL
-}
-
-async function requireAdmin() {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const sa = adminClient()
-  const { data } = await sa.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').single()
-  return data ? user : null
-}
+import { adminClient, guardAdmin, isSuperAdmin, listAllUsers } from '@/lib/supabase/admin'
+import { parseBody, userPatchSchema } from '@/lib/validation'
+import type { AddressInsert, AddressUpdate } from '@/types/database'
 
 /**
  * GET /api/admin/users
  * Retourne { users, isSuperAdmin }
  * Le super admin voit tout. Les autres admins ne voient pas le super admin.
  */
-export async function GET(request: NextRequest) {
-  const admin = await requireAdmin(request as never)
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export async function GET() {
+  const guard = await guardAdmin('read')
+  if (!guard.ok) return guard.response
+  const admin = guard.user
 
-  const currentIsSuperAdmin = checkSuperAdmin(admin.email)
+  const currentIsSuperAdmin = isSuperAdmin(admin.email)
   const sa = adminClient()
 
-  const { data: authData, error } = await sa.auth.admin.listUsers({ perPage: 1000 })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  const authUsers = authData.users
+  const authUsers = await listAllUsers(sa)
   const ids = authUsers.map((u) => u.id)
   if (ids.length === 0) return NextResponse.json({ users: [], isSuperAdmin: currentIsSuperAdmin })
 
@@ -76,7 +54,7 @@ export async function GET(request: NextRequest) {
 
   // Les admins normaux ne voient pas le super admin
   if (!currentIsSuperAdmin) {
-    users = users.filter((u) => u.email !== process.env.SUPER_ADMIN_EMAIL)
+    users = users.filter((u) => !isSuperAdmin(u.email))
   }
 
   return NextResponse.json({ users, isSuperAdmin: currentIsSuperAdmin })
@@ -87,20 +65,15 @@ export async function GET(request: NextRequest) {
  * Seul le super admin peut : promouvoir en admin, modifier un autre admin
  */
 export async function PATCH(request: NextRequest) {
-  const admin = await requireAdmin(request as never)
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await guardAdmin('write')
+  if (!guard.ok) return guard.response
+  const admin = guard.user
 
-  const currentIsSuperAdmin = checkSuperAdmin(admin.email)
-  const body = await request.json()
-  const { userId, role, full_name, phone, city } = body as {
-    userId: string
-    role?: string | null
-    full_name?: string
-    phone?: string
-    city?: string
-  }
+  const currentIsSuperAdmin = isSuperAdmin(admin.email)
 
-  if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
+  const { data: body, response } = await parseBody(request, userPatchSchema)
+  if (response) return response
+  const { userId, role, full_name, phone, city } = body
 
   const sa = adminClient()
 
@@ -109,12 +82,12 @@ export async function PATCH(request: NextRequest) {
   const targetEmail = targetAuth?.user?.email ?? ''
 
   // Personne ne peut modifier le super admin, sauf lui-même
-  if (targetEmail === process.env.SUPER_ADMIN_EMAIL && !currentIsSuperAdmin) {
+  if (isSuperAdmin(targetEmail) && !currentIsSuperAdmin) {
     return NextResponse.json({ error: 'Vous ne pouvez pas modifier ce compte.' }, { status: 403 })
   }
 
   // Seul le super admin peut promouvoir/rétrograder un admin
-  if ('role' in body && role === 'admin' && !currentIsSuperAdmin) {
+  if (role === 'admin' && !currentIsSuperAdmin) {
     return NextResponse.json({ error: 'Seul le super admin peut créer des administrateurs.' }, { status: 403 })
   }
 
@@ -139,7 +112,7 @@ export async function PATCH(request: NextRequest) {
       .eq('is_default', true)
       .maybeSingle()
 
-    const patch: Record<string, unknown> = {}
+    const patch: AddressUpdate = {}
     if (full_name !== undefined) patch.full_name = full_name
     if (phone !== undefined) patch.phone = phone
     if (city !== undefined) patch.city = city
@@ -148,7 +121,7 @@ export async function PATCH(request: NextRequest) {
       const { error } = await sa.from('addresses').update(patch).eq('id', existing.id)
       if (error) errors.push(`address update: ${error.message}`)
     } else {
-      const { error } = await sa.from('addresses').insert({
+      const newAddress = {
         user_id: userId,
         is_default: true,
         full_name: full_name ?? '',
@@ -156,7 +129,8 @@ export async function PATCH(request: NextRequest) {
         city: city ?? '',
         address: '',
         country: '',
-      })
+      } as unknown as AddressInsert
+      const { error } = await sa.from('addresses').insert(newAddress)
       if (error) errors.push(`address insert: ${error.message}`)
     }
   }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { awaitQuery } from '@/lib/supabase/query'
+import { orIlike } from '@/lib/supabase/query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { formatCurrency, formatDate, truncate, getLabel } from '@/lib/utils'
 import type { Product, ProductInsert, Category } from '@/types/database'
 import { Search, Plus, Edit, Trash2, RefreshCw, Star, ChevronLeft, ChevronRight, Eye, Images, MapPin, Clock } from 'lucide-react'
@@ -57,18 +56,22 @@ export default function ProductsPage() {
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
     if (categoryFilter !== 'all') query = query.eq('category_id', categoryFilter)
-    if (search) query = query.or(`name->>fr.ilike.%${search}%,name->>en.ilike.%${search}%`)
+    if (search) query = query.or(orIlike(['name->>fr', 'name->>en'], search))
 
-    const { data, count } = await awaitQuery<Product & { category: Category | null }>(query)
+    const { data, count } = await query
     setProducts(data ?? [])
     setTotal(count ?? 0)
     setLoading(false)
   }, [page, categoryFilter, search, supabase])
 
   useEffect(() => {
-    fetchProducts()
+    const t = setTimeout(fetchProducts, search ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [fetchProducts, search])
+
+  useEffect(() => {
     supabase.from('categories').select('*').order('name').then(({ data }) => setCategories(data ?? []))
-  }, [fetchProducts, supabase])
+  }, [supabase])
 
   function resetI18n() {
     setTitleI18n({ fr: '', en: '' })

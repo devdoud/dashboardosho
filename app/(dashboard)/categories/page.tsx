@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { orIlike } from '@/lib/supabase/query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,9 +35,8 @@ export default function CategoriesPage() {
   const fetchCategories = useCallback(async () => {
     setLoading(true)
     let query = supabase.from('categories').select('*').order('name')
-    if (search) query = query.or(`name->>fr.ilike.%${search}%,name->>en.ilike.%${search}%`)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (query as any) as { data: Category[] | null }
+    if (search) query = query.or(orIlike(['name->>fr', 'name->>en'], search))
+    const { data } = await query
     const cats = data ?? []
     setCategories(cats)
 
@@ -54,7 +54,10 @@ export default function CategoriesPage() {
     setLoading(false)
   }, [search, supabase])
 
-  useEffect(() => { fetchCategories() }, [fetchCategories])
+  useEffect(() => {
+    const t = setTimeout(fetchCategories, search ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [fetchCategories, search])
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function slugify(str: string) {

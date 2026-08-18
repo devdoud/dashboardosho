@@ -1,29 +1,12 @@
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextResponse, type NextRequest } from 'next/server'
-
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
-}
-
-async function requireAdmin() {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const sa = adminClient()
-  const { data } = await sa.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').single()
-  return data ? user : null
-}
+import { adminClient, guardAdmin, listAllUsers } from '@/lib/supabase/admin'
 
 /** GET /api/admin/orders/detail?orderId=xxx&userId=yyy
  *  Retourne { items, assignments, tailors, customer }
  */
 export async function GET(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await guardAdmin('read')
+  if (!guard.ok) return guard.response
 
   const url = new URL(request.url)
   const orderId = url.searchParams.get('orderId')
@@ -106,10 +89,10 @@ export async function GET(request: NextRequest) {
   if (allTailorIds.length > 0) {
     const [addrRes, authRes] = await Promise.all([
       sa.from('addresses').select('user_id, full_name').in('user_id', allTailorIds).eq('is_default', true),
-      sa.auth.admin.listUsers({ perPage: 1000 }),
+      listAllUsers(sa),
     ])
     for (const a of addrRes.data ?? []) addressMap[a.user_id] = a.full_name
-    for (const u of authRes.data?.users ?? []) {
+    for (const u of authRes) {
       if (allTailorIds.includes(u.id)) {
         const meta = u.user_metadata as Record<string, string> | undefined
         authEmailMap[u.id] = meta?.full_name || meta?.name || u.email?.split('@')[0] || u.id.slice(0, 6)

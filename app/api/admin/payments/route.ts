@@ -1,32 +1,16 @@
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextResponse, type NextRequest } from 'next/server'
-
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
-}
-
-async function requireAdmin() {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const sa = adminClient()
-  const { data } = await sa.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').single()
-  return data ? user : null
-}
+import { adminClient, guardAdmin, parsePage, escapeLike } from '@/lib/supabase/admin'
+import { parseFilter, paymentAttemptStatusSchema } from '@/lib/validation'
 
 /** GET /api/admin/payments?page=0&status=all&search= */
 export async function GET(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await guardAdmin('read')
+  if (!guard.ok) return guard.response
 
   const { searchParams } = new URL(request.url)
-  const page   = parseInt(searchParams.get('page') ?? '0')
-  const status = searchParams.get('status') ?? 'all'
-  const search = searchParams.get('search') ?? ''
+  const page   = parsePage(searchParams.get('page'))
+  const status = parseFilter(searchParams.get('status'), paymentAttemptStatusSchema)
+  const search = (searchParams.get('search') ?? '').trim()
   const size   = 20
 
   const sa = adminClient()
@@ -38,8 +22,8 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false })
     .range(page * size, (page + 1) * size - 1)
 
-  if (status !== 'all') query = query.eq('status', status)
-  if (search) query = query.ilike('stripe_payment_intent_id', `%${search}%`)
+  if (status) query = query.eq('status', status)
+  if (search) query = query.ilike('stripe_payment_intent_id', `%${escapeLike(search)}%`)
 
   const { data, count, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

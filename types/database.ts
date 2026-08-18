@@ -7,7 +7,18 @@ export type Database = {
       order_items: { Row: OrderItem; Insert: OrderItemInsert; Update: OrderItemUpdate; Relationships: [] }
       order_assignments: { Row: OrderAssignment; Insert: OrderAssignmentInsert; Update: OrderAssignmentUpdate; Relationships: [] }
       payment_attempts: { Row: PaymentAttempt; Insert: PaymentAttemptInsert; Update: PaymentAttemptUpdate; Relationships: [] }
-      products: { Row: Product; Insert: ProductInsert; Update: ProductUpdate; Relationships: [] }
+      products: {
+        Row: Product
+        Insert: ProductInsert
+        Update: ProductUpdate
+        Relationships: [{
+          foreignKeyName: 'products_category_id_fkey'
+          columns: ['category_id']
+          isOneToOne: false
+          referencedRelation: 'categories'
+          referencedColumns: ['id']
+        }]
+      }
       categories: { Row: Category; Insert: CategoryInsert; Update: CategoryUpdate; Relationships: [] }
       addresses: { Row: Address; Insert: AddressInsert; Update: AddressUpdate; Relationships: [] }
       measurement_profiles: { Row: MeasurementProfile; Insert: MeasurementProfileInsert; Update: MeasurementProfileUpdate; Relationships: [] }
@@ -23,13 +34,29 @@ export type Database = {
   }
 }
 
+// ─── Helpers de charge utile ──────────────────────────────────────────────────
+
+/** Clés dont le type accepte `null` : colonnes facultatives à l'insertion. */
+type NullableKeys<T> = { [K in keyof T]-?: null extends T[K] ? K : never }[keyof T]
+
+/**
+ * Charge utile d'insertion : les colonnes générées par la base sont omises,
+ * les colonnes nullables deviennent facultatives.
+ */
+export type Insertable<Row, Generated extends keyof Row> =
+  Omit<Row, Generated | NullableKeys<Row>> &
+  Partial<Pick<Row, Exclude<NullableKeys<Row>, Generated>>>
+
+/** Charge utile de mise à jour : toutes les colonnes sont facultatives. */
+export type Updatable<Row> = Partial<Row>
+
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
 export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded'
 export type PaymentMethod = 'card' | 'mobile_money'
 
-export interface ShippingAddress {
+export type ShippingAddress = {
   full_name: string
   phone: string
   address: string
@@ -39,7 +66,7 @@ export interface ShippingAddress {
   postal_code?: string
 }
 
-export interface Order {
+export type Order = {
   id: string
   user_id: string
   status: OrderStatus
@@ -60,19 +87,19 @@ export interface Order {
   updated_at: string
 }
 
-export type OrderInsert = Omit<Order, 'id' | 'created_at' | 'updated_at'>
-export type OrderUpdate = Partial<OrderInsert>
+export type OrderInsert = Insertable<Order, 'id' | 'created_at' | 'updated_at'>
+export type OrderUpdate = Updatable<Order>
 
 // ─── Order Items ──────────────────────────────────────────────────────────────
 
-export interface CustomizationDetails {
+export type CustomizationDetails = {
   tissu?: string
   broderie?: string
   finition?: string
   [key: string]: unknown
 }
 
-export interface OrderItem {
+export type OrderItem = {
   id: string
   order_id: string
   product_id: string
@@ -85,14 +112,14 @@ export interface OrderItem {
   measurements_snapshot: Json | null
 }
 
-export type OrderItemInsert = Omit<OrderItem, 'id' | 'created_at'>
-export type OrderItemUpdate = Partial<OrderItemInsert>
+export type OrderItemInsert = Insertable<OrderItem, 'id'>
+export type OrderItemUpdate = Updatable<OrderItem>
 
 // ─── Order Assignments ────────────────────────────────────────────────────────
 
 export type AssignmentStatus = 'pending' | 'accepted' | 'in_progress' | 'completed' | 'rejected' | 'cancelled'
 
-export interface OrderAssignment {
+export type OrderAssignment = {
   id: string
   order_id: string
   tailor_id: string
@@ -106,15 +133,15 @@ export interface OrderAssignment {
   updated_at: string
 }
 
-export type OrderAssignmentInsert = Omit<OrderAssignment, 'id' | 'created_at' | 'updated_at'>
-export type OrderAssignmentUpdate = Partial<OrderAssignmentInsert>
+export type OrderAssignmentInsert = Insertable<OrderAssignment, 'id' | 'created_at' | 'updated_at'>
+export type OrderAssignmentUpdate = Updatable<OrderAssignment>
 
 // ─── Payment Attempts ─────────────────────────────────────────────────────────
 
 export type PaymentAttemptStatus = 'pending' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
 export type Currency = 'xof' | 'usd'
 
-export interface PaymentAttempt {
+export type PaymentAttempt = {
   id: string
   user_id: string
   stripe_payment_intent_id: string
@@ -129,25 +156,25 @@ export interface PaymentAttempt {
   updated_at: string
 }
 
-export type PaymentAttemptInsert = Omit<PaymentAttempt, 'id' | 'created_at' | 'updated_at'>
-export type PaymentAttemptUpdate = Partial<PaymentAttemptInsert>
+export type PaymentAttemptInsert = Insertable<PaymentAttempt, 'id' | 'created_at' | 'updated_at'>
+export type PaymentAttemptUpdate = Updatable<PaymentAttempt>
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 
 export type ProductDifficulty = 'easy' | 'medium' | 'hard'
 
-export interface FabricOption {
+export type FabricOption = {
   name: string
   image_url: string
 }
 
 /** Valeur textuelle bilingue (FR/EN) stockée en JSON */
-export interface I18nText {
+export type I18nText = {
   fr: string
   en: string
 }
 
-export interface Product {
+export type Product = {
   id: string
   name: string
   price: number
@@ -172,15 +199,15 @@ export interface Product {
   created_at: string
 }
 
-export type ProductInsert = Omit<Product, 'id' | 'created_at'>
-export type ProductUpdate = Partial<ProductInsert>
+export type ProductInsert = Insertable<Product, 'id' | 'created_at'>
+export type ProductUpdate = Updatable<Product>
 
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export type CategoryType = 'homme' | 'femme' | 'enfant'
 export type CategoryStyle = 'traditionnel' | 'moderne' | 'mixte'
 
-export interface Category {
+export type Category = {
   id: string
   name: string
   slug: string
@@ -190,12 +217,12 @@ export interface Category {
   created_at: string
 }
 
-export type CategoryInsert = Omit<Category, 'id' | 'created_at'>
-export type CategoryUpdate = Partial<CategoryInsert>
+export type CategoryInsert = Insertable<Category, 'id' | 'created_at'>
+export type CategoryUpdate = Updatable<Category>
 
 // ─── Addresses ────────────────────────────────────────────────────────────────
 
-export interface Address {
+export type Address = {
   id: string
   user_id: string
   full_name: string
@@ -209,14 +236,14 @@ export interface Address {
   created_at: string
 }
 
-export type AddressInsert = Omit<Address, 'id' | 'created_at'>
-export type AddressUpdate = Partial<AddressInsert>
+export type AddressInsert = Insertable<Address, 'id' | 'created_at'>
+export type AddressUpdate = Updatable<Address>
 
 // ─── Measurement Profiles ─────────────────────────────────────────────────────
 
 export type Gender = 'homme' | 'femme'
 
-export interface MeasurementProfile {
+export type MeasurementProfile = {
   id: string
   user_id: string
   profile_name: string
@@ -240,12 +267,12 @@ export interface MeasurementProfile {
   created_at: string
 }
 
-export type MeasurementProfileInsert = Omit<MeasurementProfile, 'id' | 'created_at'>
-export type MeasurementProfileUpdate = Partial<MeasurementProfileInsert>
+export type MeasurementProfileInsert = Insertable<MeasurementProfile, 'id' | 'created_at'>
+export type MeasurementProfileUpdate = Updatable<MeasurementProfile>
 
 // ─── Measurement Tutorials ────────────────────────────────────────────────────
 
-export interface MeasurementTutorial {
+export type MeasurementTutorial = {
   id: string
   slug: string
   title: string
@@ -257,12 +284,12 @@ export interface MeasurementTutorial {
   created_at: string
 }
 
-export type MeasurementTutorialInsert = Omit<MeasurementTutorial, 'id' | 'created_at'>
-export type MeasurementTutorialUpdate = Partial<MeasurementTutorialInsert>
+export type MeasurementTutorialInsert = Insertable<MeasurementTutorial, 'id' | 'created_at'>
+export type MeasurementTutorialUpdate = Updatable<MeasurementTutorial>
 
 // ─── Tailor Reviews ───────────────────────────────────────────────────────────
 
-export interface TailorReview {
+export type TailorReview = {
   id: string
   order_id: string
   tailor_id: string
@@ -272,28 +299,28 @@ export interface TailorReview {
   created_at: string
 }
 
-export type TailorReviewInsert = Omit<TailorReview, 'id' | 'created_at'>
-export type TailorReviewUpdate = Partial<TailorReviewInsert>
+export type TailorReviewInsert = Insertable<TailorReview, 'id' | 'created_at'>
+export type TailorReviewUpdate = Updatable<TailorReview>
 
 // ─── User Roles ───────────────────────────────────────────────────────────────
 
 export type UserRoleType = 'admin' | 'tailor' | 'customer'
 
-export interface UserRole {
+export type UserRole = {
   id: string
   user_id: string
   role: UserRoleType
   created_at: string
 }
 
-export type UserRoleInsert = Omit<UserRole, 'id' | 'created_at'>
-export type UserRoleUpdate = Partial<UserRoleInsert>
+export type UserRoleInsert = Insertable<UserRole, 'id' | 'created_at'>
+export type UserRoleUpdate = Updatable<UserRole>
 
 // ─── FCM Tokens ───────────────────────────────────────────────────────────────
 
 export type FcmPlatform = 'android' | 'ios'
 
-export interface FcmToken {
+export type FcmToken = {
   id: string
   user_id: string
   token: string
@@ -302,12 +329,12 @@ export interface FcmToken {
   updated_at: string
 }
 
-export type FcmTokenInsert = Omit<FcmToken, 'id' | 'created_at' | 'updated_at'>
-export type FcmTokenUpdate = Partial<FcmTokenInsert>
+export type FcmTokenInsert = Insertable<FcmToken, 'id' | 'created_at' | 'updated_at'>
+export type FcmTokenUpdate = Updatable<FcmToken>
 
 // ─── Notification payload ─────────────────────────────────────────────────────
 
-export interface NotificationPayload {
+export type NotificationPayload = {
   user_id: string
   title: string
   body: string
@@ -318,20 +345,20 @@ export type NotificationTarget = 'user' | 'all_customers' | 'all_tailors' | 'all
 
 // ─── Extended types with joins ────────────────────────────────────────────────
 
-export interface OrderWithItems extends Order {
+export type OrderWithItems = Order & {
   order_items: (OrderItem & { product: Pick<Product, 'id' | 'name' | 'thumbnail' | 'sku'> | null })[]
   user?: { id: string; email?: string }
 }
 
-export interface OrderWithAssignment extends Order {
+export type OrderWithAssignment = Order & {
   order_assignments: OrderAssignment[]
 }
 
-export interface ProductWithCategory extends Product {
+export type ProductWithCategory = Product & {
   category: Category | null
 }
 
-export interface ReviewWithDetails extends TailorReview {
+export type ReviewWithDetails = TailorReview & {
   tailor?: { id: string; email?: string }
   customer?: { id: string; email?: string }
   order?: Pick<Order, 'id' | 'total_amount' | 'created_at'>

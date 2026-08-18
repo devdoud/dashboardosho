@@ -9,6 +9,14 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Scissors, Loader2, AlertCircle } from 'lucide-react'
 
+/** Messages associés au paramètre `?error=` posé par le proxy. */
+const ERROR_MESSAGES: Record<string, string> = {
+  unauthorized:        "Vous n'avez pas les droits d'accès à cette interface.",
+  session_expired:     'Votre session a atteint sa durée maximale (8 h). Reconnectez-vous.',
+  session_idle:        "Session fermée après 15 minutes d'inactivité. Reconnectez-vous.",
+  auth_callback_error: 'La connexion a échoué. Réessayez.',
+}
+
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -55,10 +63,10 @@ function LoginForm() {
             <CardDescription>Accès réservé aux administrateurs</CardDescription>
           </CardHeader>
           <CardContent>
-            {error === 'unauthorized' && (
+            {error && ERROR_MESSAGES[error] && (
               <div className="flex items-center gap-2 rounded-lg bg-destructive/10 text-destructive px-3 py-2 text-sm mb-4">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                Vous n&apos;avez pas les droits d&apos;accès à cette interface.
+                {ERROR_MESSAGES[error]}
               </div>
             )}
 

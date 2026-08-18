@@ -150,7 +150,10 @@ export default function OrdersPage() {
     setLoading(false)
   }, [page, statusFilter, paymentFilter, search])
 
-  useEffect(() => { fetchOrders() }, [fetchOrders])
+  useEffect(() => {
+    const t = setTimeout(fetchOrders, search ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [fetchOrders, search])
 
   // ─── Fetch tailors (indépendant, chargé au montage) ───────────────────────────
 
@@ -162,7 +165,10 @@ export default function OrdersPage() {
     }
   }, [])
 
-  useEffect(() => { fetchTailors() }, [fetchTailors])
+  useEffect(() => {
+    const t = setTimeout(fetchTailors, 0)
+    return () => clearTimeout(t)
+  }, [fetchTailors])
 
   // ─── Fetch detail (items + assignments) ──────────────────────────────────────
 

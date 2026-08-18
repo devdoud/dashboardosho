@@ -52,7 +52,10 @@ export default function PaymentsPage() {
     setLoading(false)
   }, [page, statusFilter, search])
 
-  useEffect(() => { fetchPayments() }, [fetchPayments])
+  useEffect(() => {
+    const t = setTimeout(fetchPayments, search ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [fetchPayments, search])
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
 

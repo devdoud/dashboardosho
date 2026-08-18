@@ -1,27 +1,10 @@
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
-}
-
-async function requireAdmin() {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const sa = adminClient()
-  const { data } = await sa.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').single()
-  return data ? user : null
-}
+import { adminClient, guardAdmin, listAllUsers } from '@/lib/supabase/admin'
 
 /** GET /api/admin/tailors — liste des tailleurs avec stats */
 export async function GET() {
-  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await guardAdmin('read')
+  if (!guard.ok) return guard.response
 
   const sa = adminClient()
 
@@ -41,12 +24,12 @@ export async function GET() {
     sa.from('addresses').select('user_id, full_name, phone, city').in('user_id', ids).eq('is_default', true),
     sa.from('order_assignments').select('tailor_id, status, order_id').in('tailor_id', ids),
     sa.from('tailor_reviews').select('tailor_id, rating').in('tailor_id', ids),
-    sa.auth.admin.listUsers({ perPage: 1000 }),
+    listAllUsers(sa),
   ])
 
   // Map email + user_metadata.full_name depuis auth
   const authMap: Record<string, { email: string; metaName?: string }> = {}
-  for (const u of authRes.data?.users ?? []) {
+  for (const u of authRes) {
     if (ids.includes(u.id)) {
       const meta = u.user_metadata as Record<string, string> | undefined
       authMap[u.id] = {

@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import { adminClient, requireAdmin, listAllUsers } from '@/lib/supabase/admin'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { RevenueChart } from '@/components/dashboard/revenue-chart'
@@ -17,12 +18,27 @@ import Link from 'next/link'
 
 export const metadata = { title: 'Dashboard' }
 
+const ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const
+
+const STATUS_COLORS: Record<string, string> = {
+  pending:    '#f59e0b',
+  processing: '#3b82f6',
+  shipped:    '#8b5cf6',
+  delivered:  '#10b981',
+  cancelled:  '#ef4444',
+}
+
+/**
+ * Lectures en service_role, derrière `requireAdmin()`.
+ * Auparavant cette page interrogeait `orders` et `payment_attempts` avec la clé
+ * anon : les données n'étaient protégées que par des policies RLS non versionnées.
+ */
 async function getStats() {
-  const supabase = await createClient()
+  const sa = adminClient()
   const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const startOfMonth     = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
-  const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString()
+  const endOfLastMonth   = new Date(now.getFullYear(), now.getMonth(), 0).toISOString()
 
   const [
     { count: totalOrders },
@@ -30,86 +46,90 @@ async function getStats() {
     { count: lastMonthOrders },
     { data: revenueData },
     { data: lastMonthRevenue },
-    { count: totalUsers },
-    { data: ordersByStatus },
     { data: recentOrders },
     { data: paymentStats },
+    { data: roleRows },
+    authUsers,
+    statusCountEntries,
   ] = await Promise.all([
-    supabase.from('orders').select('*', { count: 'exact', head: true }),
-    supabase.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', startOfMonth),
-    supabase.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', startOfLastMonth).lte('created_at', endOfLastMonth),
-    supabase.from('orders').select('total_amount').eq('payment_status', 'paid').gte('created_at', startOfMonth),
-    supabase.from('orders').select('total_amount').eq('payment_status', 'paid').gte('created_at', startOfLastMonth).lte('created_at', endOfLastMonth),
-    supabase.from('user_roles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
-    supabase.from('orders').select('status'),
-    supabase.from('orders').select('id, status, total_amount, payment_status, created_at, user_id').order('created_at', { ascending: false }).limit(5),
-    supabase.from('payment_attempts').select('amount, status').eq('status', 'succeeded').gte('created_at', startOfMonth),
+    sa.from('orders').select('*', { count: 'exact', head: true }),
+    sa.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', startOfMonth),
+    sa.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', startOfLastMonth).lte('created_at', endOfLastMonth),
+    sa.from('orders').select('total_amount').eq('payment_status', 'paid').gte('created_at', startOfMonth),
+    sa.from('orders').select('total_amount').eq('payment_status', 'paid').gte('created_at', startOfLastMonth).lte('created_at', endOfLastMonth),
+    sa.from('orders').select('id, status, total_amount, payment_status, created_at, user_id').order('created_at', { ascending: false }).limit(5),
+    sa.from('payment_attempts').select('amount').eq('status', 'succeeded').gte('created_at', startOfMonth),
+    sa.from('user_roles').select('role'),
+    listAllUsers(sa),
+    // Un COUNT par statut plutôt qu'un chargement de toutes les commandes.
+    Promise.all(
+      ORDER_STATUSES.map(async (status) => {
+        const { count } = await sa.from('orders').select('*', { count: 'exact', head: true }).eq('status', status)
+        return [status, count ?? 0] as const
+      }),
+    ),
   ])
 
   const monthRevenue = revenueData?.reduce((s, o) => s + (o.total_amount ?? 0), 0) ?? 0
-  const lastRevenue = lastMonthRevenue?.reduce((s, o) => s + (o.total_amount ?? 0), 0) ?? 0
-  const revenuePct = lastRevenue > 0 ? ((monthRevenue - lastRevenue) / lastRevenue) * 100 : 0
+  const lastRevenue  = lastMonthRevenue?.reduce((s, o) => s + (o.total_amount ?? 0), 0) ?? 0
+  const revenuePct   = lastRevenue > 0 ? ((monthRevenue - lastRevenue) / lastRevenue) * 100 : 0
 
   const ordersPct = (lastMonthOrders ?? 0) > 0
     ? (((monthOrders ?? 0) - (lastMonthOrders ?? 0)) / (lastMonthOrders ?? 0)) * 100
     : 0
 
-  // Status counts
-  const statusCounts: Record<string, number> = {}
-  for (const o of ordersByStatus ?? []) {
-    statusCounts[o.status] = (statusCounts[o.status] ?? 0) + 1
-  }
+  // Les clients n'ont pas de ligne dans `user_roles` (rôle null) : compter
+  // `role = 'customer'` renvoyait systématiquement 0. On déduit donc les
+  // comptes staff du total des comptes auth.
+  const staffCount = (roleRows ?? []).filter((r) => r.role === 'admin' || r.role === 'tailor').length
+  const totalCustomers = Math.max(authUsers.length - staffCount, 0)
 
-  const STATUS_COLORS: Record<string, string> = {
-    pending: '#f59e0b',
-    processing: '#3b82f6',
-    shipped: '#8b5cf6',
-    delivered: '#10b981',
-    cancelled: '#ef4444',
-  }
+  const pieData = statusCountEntries
+    .filter(([, value]) => value > 0)
+    .map(([name, value]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      value,
+      color: STATUS_COLORS[name] ?? '#6b7280',
+    }))
 
-  const pieData = Object.entries(statusCounts).map(([name, value]) => ({
-    name: name.charAt(0).toUpperCase() + name.slice(1),
-    value,
-    color: STATUS_COLORS[name] ?? '#6b7280',
-  }))
-
-  // Monthly revenue for chart (last 6 months)
-  type MonthEntry = { month: string; revenue: number; start: string; end: string }
+  // Revenus des 6 derniers mois — regroupés sur (année, mois) et non sur le
+  // libellé court, qui se répète d'une année sur l'autre.
+  type MonthEntry = { key: string; month: string; revenue: number }
   const months: MonthEntry[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
-    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString()
-    const month = d.toLocaleString('fr-FR', { month: 'short' })
-    months.push({ month, revenue: 0, start, end })
+    months.push({
+      key: `${d.getFullYear()}-${d.getMonth()}`,
+      month: d.toLocaleString('fr-FR', { month: 'short' }),
+      revenue: 0,
+    })
   }
+  const byKey = new Map(months.map((m) => [m.key, m]))
 
-  const { data: allPaidOrders } = await supabase
+  const { data: allPaidOrders } = await sa
     .from('orders')
     .select('total_amount, paid_at')
     .eq('payment_status', 'paid')
-    .gte('paid_at', months[0]?.start ?? '')
+    .gte('paid_at', new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString())
     .order('paid_at', { ascending: true })
 
   for (const order of allPaidOrders ?? []) {
     if (!order.paid_at) continue
     const d = new Date(order.paid_at)
-    const label = d.toLocaleString('fr-FR', { month: 'short' })
-    const m = months.find((x) => x.month === label)
+    const m = byKey.get(`${d.getFullYear()}-${d.getMonth()}`)
     if (m) m.revenue += order.total_amount ?? 0
   }
 
   return {
-    totalOrders: totalOrders ?? 0,
-    monthOrders: monthOrders ?? 0,
+    totalOrders:   totalOrders ?? 0,
+    monthOrders:   monthOrders ?? 0,
     ordersPct,
     monthRevenue,
     revenuePct,
-    totalUsers: totalUsers ?? 0,
+    totalUsers:    totalCustomers,
     pieData,
-    revenueChart: months.map(({ month, revenue }) => ({ month, revenue })),
-    recentOrders: recentOrders ?? [],
+    revenueChart:  months.map(({ month, revenue }) => ({ month, revenue })),
+    recentOrders:  recentOrders ?? [],
     totalPayments: paymentStats?.reduce((s, p) => s + (p.amount ?? 0), 0) ?? 0,
   }
 }
@@ -123,6 +143,8 @@ const ORDER_STATUS_BADGE: Record<string, { label: string; variant: 'default' | '
 }
 
 export default async function DashboardPage() {
+  if (!await requireAdmin()) redirect('/login?error=unauthorized')
+
   const stats = await getStats()
 
   return (

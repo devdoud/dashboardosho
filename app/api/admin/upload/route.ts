@@ -1,13 +1,20 @@
-import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextResponse, type NextRequest } from 'next/server'
+import { adminClient, guardAdmin } from '@/lib/supabase/admin'
 
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
+/** Buckets autorisés à l'upload. Ils doivent exister (cf. migrations/002, 005). */
+const ALLOWED_BUCKETS = new Set(['products', 'categories'])
+
+/** Dossiers autorisés — évite toute construction de chemin arbitraire. */
+const FOLDER_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/
+
+const MAX_BYTES = 8 * 1024 * 1024
+
+/** Extension déduite du type MIME, jamais du nom de fichier fourni par le client. */
+const EXT_BY_MIME: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png':  'png',
+  'image/webp': 'webp',
+  'image/gif':  'gif',
 }
 
 /**
@@ -16,68 +23,43 @@ function adminClient() {
  * Returns: { url: string }
  */
 export async function POST(request: NextRequest) {
-  // 1. Auth
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const guard = await guardAdmin('upload')
+  if (!guard.ok) return guard.response
 
-  const sa = adminClient()
-
-  const { data: roleRow } = await sa
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .eq('role', 'admin')
-    .single()
-  if (!roleRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  // 2. Parse body
   let formData: FormData
   try { formData = await request.formData() }
   catch { return NextResponse.json({ error: 'Invalid multipart body' }, { status: 400 }) }
 
-  const file   = formData.get('file')   as File | null
+  const file   = formData.get('file')
   const folder = (formData.get('folder') as string | null) ?? 'images'
   const bucket = (formData.get('bucket') as string | null) ?? 'products'
 
-  if (!file || typeof file === 'string')
+  if (!(file instanceof File))
     return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-  if (!file.type.startsWith('image/'))
-    return NextResponse.json({ error: 'File must be an image' }, { status: 400 })
-  if (file.size > 8 * 1024 * 1024)
-    return NextResponse.json({ error: 'Image too large (max 8 MB)' }, { status: 400 })
 
-  const ext  = file.name.split('.').pop() ?? 'jpg'
-  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-  const buffer = await file.arrayBuffer()
+  const ext = EXT_BY_MIME[file.type]
+  if (!ext)
+    return NextResponse.json({ error: 'Format accepté : JPEG, PNG, WebP ou GIF' }, { status: 400 })
 
-  // 3. Upload — crée le bucket si absent, puis réessaie
-  let { error: uploadError } = await sa.storage
+  if (file.size > MAX_BYTES)
+    return NextResponse.json({ error: 'Image trop lourde (max 8 Mo)' }, { status: 400 })
+
+  if (!ALLOWED_BUCKETS.has(bucket))
+    return NextResponse.json({ error: 'Bucket non autorisé' }, { status: 400 })
+
+  if (!FOLDER_RE.test(folder))
+    return NextResponse.json({ error: 'Nom de dossier invalide' }, { status: 400 })
+
+  const path = `${folder}/${Date.now()}-${crypto.randomUUID()}.${ext}`
+  const sa   = adminClient()
+
+  const { error } = await sa.storage
     .from(bucket)
-    .upload(path, buffer, { contentType: file.type, upsert: true })
+    .upload(path, await file.arrayBuffer(), { contentType: file.type, upsert: false })
 
-  if (uploadError) {
-    const msg = uploadError.message.toLowerCase()
-    if (msg.includes('bucket') || msg.includes('not found')) {
-      // Bucket absent : le créer puis réessayer
-      const { error: createErr } = await sa.storage.createBucket(bucket, {
-        public: true,
-        allowedMimeTypes: ['image/*'],
-        fileSizeLimit: '8MB',
-      })
-      if (createErr && !createErr.message.toLowerCase().includes('already exist')) {
-        return NextResponse.json({ error: `Bucket creation: ${createErr.message}` }, { status: 500 })
-      }
-
-      const retry = await sa.storage
-        .from(bucket)
-        .upload(path, buffer, { contentType: file.type, upsert: true })
-      uploadError = retry.error
-    }
-  }
-
-  if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 500 })
+  if (error) {
+    console.error('[upload]', error.message)
+    return NextResponse.json({ error: "L'upload a échoué." }, { status: 500 })
   }
 
   const { data } = sa.storage.from(bucket).getPublicUrl(path)

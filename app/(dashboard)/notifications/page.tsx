@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -63,7 +62,6 @@ interface SendResult {
 }
 
 export default function NotificationsPage() {
-  const supabase = createClient()
 
   // Form state
   const [target, setTarget]     = useState<NotificationTarget>('user')
@@ -81,22 +79,40 @@ export default function NotificationsPage() {
   const [userSuggestions, setUserSuggestions] = useState<{ id: string; name: string; email?: string }[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
 
-  // Stats tokens
+  // Stats tokens — résolu côté serveur, la table n'est plus lue depuis le navigateur.
   useEffect(() => {
-    supabase.from('fcm_tokens').select('*', { count: 'exact', head: true }).then(({ count }) => setTokenCount(count ?? 0))
-  }, [supabase])
+    let cancelled = false
+    fetch('/api/admin/notifications')
+      .then((res) => (res.ok ? res.json() : { tokenCount: 0 }))
+      .then((json) => { if (!cancelled) setTokenCount(json.tokenCount ?? 0) })
+      .catch(() => { if (!cancelled) setTokenCount(0) })
+    return () => { cancelled = true }
+  }, [])
 
-  // Recherche utilisateur (nom ou email, résolus côté serveur)
+  // Recherche utilisateur (nom ou email, résolus côté serveur).
+  // Tous les setState sont dans le callback du timer : en appeler un
+  // directement dans le corps de l'effet provoque un rendu en cascade.
   useEffect(() => {
-    if (!userSearch || userSearch.length < 2) { setUserSuggestions([]); return }
-    setLoadingUsers(true)
+    const tooShort = !userSearch || userSearch.length < 2
+    let cancelled = false
+
     const timeout = setTimeout(async () => {
-      const res = await fetch(`/api/admin/notifications?search=${encodeURIComponent(userSearch)}`)
-      const json = res.ok ? await res.json() : { users: [] }
-      setUserSuggestions(json.users ?? [])
-      setLoadingUsers(false)
-    }, 350)
-    return () => clearTimeout(timeout)
+      if (tooShort) {
+        setUserSuggestions([])
+        setLoadingUsers(false)
+        return
+      }
+      setLoadingUsers(true)
+      try {
+        const res = await fetch(`/api/admin/notifications?search=${encodeURIComponent(userSearch)}`)
+        const json = res.ok ? await res.json() : { users: [] }
+        if (!cancelled) setUserSuggestions(json.users ?? [])
+      } finally {
+        if (!cancelled) setLoadingUsers(false)
+      }
+    }, tooShort ? 0 : 350)
+
+    return () => { cancelled = true; clearTimeout(timeout) }
   }, [userSearch])
 
   function applyTemplate(tpl: typeof TEMPLATES[0]) {

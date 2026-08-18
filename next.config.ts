@@ -1,14 +1,17 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  typescript: {
-    // Supabase query builder generics produce false-positive TS errors at build time.
-    ignoreBuildErrors: true,
-  },
-
   images: {
-    // Supabase Storage is already a CDN — letting Next.js re-fetch and re-compress
-    // images server-side adds latency and causes timeout errors. Serve them directly.
+    // Supabase Storage est déjà un CDN — laisser Next.js re-télécharger et
+    // re-compresser les images côté serveur ajoute de la latence et provoque
+    // des timeouts. On les sert directement.
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://localhost').hostname,
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
     unoptimized: true,
   },
 }
