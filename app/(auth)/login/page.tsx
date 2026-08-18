@@ -9,11 +9,20 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Scissors, Loader2, AlertCircle } from 'lucide-react'
 
-/** Messages associés au paramètre `?error=` posé par le proxy. */
+/**
+ * Messages associés au paramètre `?error=` posé par le proxy.
+ *
+ * Les deux motifs de fin de session partagent volontairement le même texte :
+ * annoncer les durées exactes (borne absolue, délai d'inactivité) exposerait la
+ * configuration de sécurité sans rien apporter à l'utilisateur, qui n'a qu'à se
+ * reconnecter. Les valeurs restent dans `lib/session.ts`.
+ */
+const SESSION_ENDED = 'Votre session a expiré. Veuillez vous reconnecter.'
+
 const ERROR_MESSAGES: Record<string, string> = {
   unauthorized:        "Vous n'avez pas les droits d'accès à cette interface.",
-  session_expired:     'Votre session a atteint sa durée maximale (8 h). Reconnectez-vous.',
-  session_idle:        "Session fermée après 15 minutes d'inactivité. Reconnectez-vous.",
+  session_expired:     SESSION_ENDED,
+  session_idle:        SESSION_ENDED,
   auth_callback_error: 'La connexion a échoué. Réessayez.',
 }
 

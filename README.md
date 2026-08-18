@@ -98,7 +98,8 @@ Toutes les constantes sont regroupées et commentées à leur point d'usage.
 La session est bornée par un cookie d'activité signé (HMAC-SHA256) : le
 modifier sans le secret serveur invalide la signature et ferme la session.
 Dépasser l'une des deux bornes purge les cookies `sb-*` et renvoie vers
-`/login` avec un message explicite.
+`/login`. L'écran de connexion affiche un message générique — les durées ne sont
+volontairement pas divulguées côté client.
 
 Le compteur de débit est **en mémoire, par instance** : sur un déploiement
 multi-instance la limite effective est `quota × nombre d'instances`. C'est un
