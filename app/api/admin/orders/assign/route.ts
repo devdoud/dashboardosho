@@ -1,7 +1,39 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { adminClient, guardAdmin, listAllUsers } from '@/lib/supabase/admin'
 import { parseBody, orderAssignSchema } from '@/lib/validation'
-import type { OrderUpdate } from '@/types/database'
+import type { Database, OrderUpdate } from '@/types/database'
+
+/**
+ * Prévient le tailleur qui vient d'être assigné, via l'Edge Function
+ * `notify-tailors` (elle résout elle-même le destinataire à partir de la commande).
+ *
+ * Appelée APRÈS que l'assignation est persistée et que le trigger
+ * `sync_order_primary_tailor` a mis `orders.primary_tailor_id` à jour : la
+ * fonction voit donc un état cohérent.
+ *
+ * L'échec du push ne fait PAS échouer la requête — l'assignation est déjà
+ * enregistrée, renvoyer une 500 laisserait croire le contraire à l'admin. On
+ * journalise et on remonte l'information dans la réponse.
+ */
+async function notifyAssignedTailor(
+  sa: SupabaseClient<Database>,
+  orderId: string,
+): Promise<string | null> {
+  try {
+    const { error } = await sa.functions.invoke('notify-tailors', {
+      body: { order_id: orderId },
+    })
+    if (error) {
+      console.error('[assign] notify-tailors:', error.message)
+      return error.message
+    }
+    return null
+  } catch (err) {
+    console.error('[assign] notify-tailors:', err)
+    return String(err)
+  }
+}
 
 /** GET /api/admin/orders/assign — liste des tailleurs disponibles */
 export async function GET() {
@@ -81,7 +113,14 @@ export async function POST(request: NextRequest) {
     await sa.from('orders').update(patch).eq('id', orderId)
   }
 
-  return NextResponse.json({ ok: true })
+  // Notification push au tailleur assigné.
+  const notifyError = await notifyAssignedTailor(sa, orderId)
+
+  return NextResponse.json({
+    ok: true,
+    notified: notifyError === null,
+    ...(notifyError ? { notifyError } : {}),
+  })
 }
 
 /** DELETE /api/admin/orders/assign?id=xxx — annuler un assignment */

@@ -129,6 +129,8 @@ export default function OrdersPage() {
   const [selectedTailor, setSelectedTailor] = useState('')
   const [assignmentNotes, setAssignmentNotes] = useState('')
   const [assigning, setAssigning] = useState(false)
+  // Assignation enregistrée mais push non parti : avertissement non bloquant.
+  const [assignWarning, setAssignWarning] = useState<string | null>(null)
   const [loadingAssignments, setLoadingAssignments] = useState(false)
 
   // ─── Fetch orders via API (service role — bypass RLS) ────────────────────────
@@ -235,7 +237,9 @@ export default function OrdersPage() {
   async function assignTailor() {
     if (!selectedOrder || !selectedTailor) return
     setAssigning(true)
-    await fetch('/api/admin/orders/assign', {
+    setAssignWarning(null)
+
+    const res = await fetch('/api/admin/orders/assign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -245,6 +249,22 @@ export default function OrdersPage() {
         currentStatus: selectedOrder.status,
       }),
     })
+
+    const json = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      setAssignWarning(json.error ?? "L'assignation a échoué.")
+      setAssigning(false)
+      return
+    }
+
+    // L'assignation est enregistrée ; seule la notification a pu échouer.
+    if (json.notified === false) {
+      setAssignWarning(
+        "Tailleur assigné, mais la notification push n'a pas pu être envoyée.",
+      )
+    }
+
     if (selectedOrder.status === 'pending') {
       setSelectedOrder((prev) => prev ? { ...prev, status: 'processing' } : null)
     }
@@ -727,6 +747,13 @@ export default function OrdersPage() {
                       className="text-sm resize-none bg-background"
                     />
                   </div>
+
+                  {assignWarning && (
+                    <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-500 px-3 py-2 text-xs">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      {assignWarning}
+                    </div>
+                  )}
 
                   <Button
                     size="sm"
