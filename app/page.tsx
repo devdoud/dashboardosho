@@ -96,9 +96,9 @@ export default async function LandingPage() {
                 Boubou, agbada and kaftan in bazin, Vlisco and wax — made by a tailor
                 for you alone. Save your measurements once; every order is cut from them.
               </p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <StoreLink href={APP_STORE_URL} primary>Download for iPhone</StoreLink>
-                <StoreLink href={PLAY_STORE_URL}>Get it on Android</StoreLink>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <StoreBadge store="apple" />
+                <StoreBadge store="google" />
               </div>
               <p className="mt-4 text-sm text-muted">Priced at the atelier, charged in US dollars.</p>
             </div>
@@ -219,9 +219,9 @@ export default async function LandingPage() {
             <p className="max-w-md text-base text-muted">
               Download Osho, save your measurements, and choose your fabric. Free on iPhone and Android.
             </p>
-            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-              <StoreLink href={APP_STORE_URL} primary>Download for iPhone</StoreLink>
-              <StoreLink href={PLAY_STORE_URL}>Get it on Android</StoreLink>
+            <div className="flex flex-wrap gap-3 md:justify-center">
+              <StoreBadge store="apple" />
+              <StoreBadge store="google" />
             </div>
           </div>
         </section>
@@ -321,19 +321,29 @@ function PriceTag({ value, prefix }: { value: string; prefix?: string }) {
   )
 }
 
-function StoreLink({ href, primary = false, children }: { href: string; primary?: boolean; children: React.ReactNode }) {
+/**
+ * Badges officiels des magasins, intégrés tels quels (public/badges/).
+ * Exception assumée aux jetons : ce sont des marques déposées, Apple et Google
+ * imposent leurs couleurs et interdisent de les redessiner. Même hauteur pour
+ * les deux, comme le demandent leurs chartes ; 50 px tient la cible de 44 px
+ * et laisse les deux badges côte à côte à 390 px.
+ */
+const BADGES = {
+  apple:  { href: APP_STORE_URL,  src: '/badges/app-store.svg',   alt: 'Download on the App Store' },
+  google: { href: PLAY_STORE_URL, src: '/badges/google-play.svg', alt: 'Get it on Google Play' },
+} as const
+
+function StoreBadge({ store }: { store: keyof typeof BADGES }) {
+  const b = BADGES[store]
   return (
     <a
-      href={href}
+      href={b.href}
       target="_blank"
       rel="noopener noreferrer"
-      className={
-        primary
-          ? 'flex h-12 items-center justify-center rounded-sm bg-primary-fill px-6 text-base font-medium text-primary-ink transition-colors hover:bg-primary-fill/88'
-          : 'flex h-12 items-center justify-center rounded-sm border border-ink px-6 text-base font-medium text-ink transition-colors hover:bg-surface'
-      }
+      className="inline-flex rounded-sm transition-opacity hover:opacity-85"
     >
-      {children}
+      {/* eslint-disable-next-line @next/next/no-img-element -- SVG vectoriel, rien à optimiser */}
+      <img src={b.src} alt={b.alt} width={169} height={50} className="block h-[50px] w-auto" />
     </a>
   )
 }
