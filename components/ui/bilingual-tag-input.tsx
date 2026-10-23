@@ -15,9 +15,9 @@ interface BilingualTagInputProps {
   max?: number
 }
 
-const LANGS: { key: keyof I18nValue; flag: string; label: string }[] = [
-  { key: 'fr', flag: '🇫🇷', label: 'FR' },
-  { key: 'en', flag: '🇬🇧', label: 'EN' },
+const LANGS: { key: keyof I18nValue; label: string; name: string }[] = [
+  { key: 'fr', label: 'FR', name: 'Français' },
+  { key: 'en', label: 'EN', name: 'English' },
 ]
 
 export function BilingualTagInput({
@@ -71,24 +71,25 @@ export function BilingualTagInput({
   return (
     <div className={cn('space-y-2', className)}>
       {/* Sélecteur de langue */}
-      <div className="flex w-fit">
-        {LANGS.map(({ key, flag, label }) => {
+      <div className="flex w-fit" role="group" aria-label="Langue des éléments">
+        {LANGS.map(({ key, label, name }) => {
           const isActive = active === key
           return (
             <button
               key={key}
               type="button"
               onClick={() => setActive(key)}
+              aria-pressed={isActive}
+              aria-label={name}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1 text-xs font-medium border transition-colors select-none',
-                key === 'fr' ? 'rounded-l-md' : 'rounded-r-md border-l-0',
+                'flex min-h-11 select-none items-center border px-4 text-sm font-medium transition-colors',
+                key === 'fr' ? 'rounded-l-sm' : 'rounded-r-sm border-l-0',
                 isActive
-                  ? 'bg-background border-input text-foreground'
-                  : 'bg-muted/50 border-transparent text-muted-foreground hover:text-foreground',
+                  ? 'border-ink bg-surface text-ink'
+                  : 'border-hairline text-muted hover:text-ink',
               )}
             >
-              <span>{flag}</span>
-              <span>{label}</span>
+              {label}
             </button>
           )
         })}
@@ -96,7 +97,7 @@ export function BilingualTagInput({
 
       {/* Zone de saisie + tags existants (langue active) */}
       <div
-        className="flex flex-wrap gap-1.5 min-h-10 w-full rounded-md border border-input bg-background px-3 py-2 cursor-text focus-within:ring-1 focus-within:ring-ring"
+        className="flex min-h-11 w-full cursor-text flex-wrap items-center gap-1.5 rounded-sm border border-hairline bg-surface px-2 py-1.5 transition-colors focus-within:border-ink"
         onClick={() => inputRef.current?.focus()}
       >
         {value.map((tag, i) => {
@@ -105,44 +106,50 @@ export function BilingualTagInput({
           return (
             <span
               key={i}
-              title={tag[otherKey].trim() ? `${otherKey.toUpperCase()}: ${tag[otherKey]}` : `Traduction ${otherKey.toUpperCase()} manquante`}
+              title={tag[otherKey].trim() ? `${otherKey.toUpperCase()} : ${tag[otherKey]}` : `Traduction ${otherKey.toUpperCase()} manquante`}
               className={cn(
-                'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium',
+                'inline-flex h-8 items-center gap-0.5 rounded-sm pl-2 text-sm font-medium',
                 missing
-                  ? 'border border-dashed border-amber-400 text-amber-600 bg-amber-50'
-                  : 'bg-primary text-primary-foreground',
+                  ? 'border border-dashed border-warn-border bg-warn-bg text-warn-ink'
+                  : 'bg-primary-fill text-primary-ink',
               )}
             >
               <input
+                lang={active}
                 value={current}
                 onChange={(e) => editTag(i, e.target.value)}
                 onClick={(e) => e.stopPropagation()}
+                aria-label={missing ? `Traduction ${active.toUpperCase()} manquante` : `Élément ${i + 1}`}
                 placeholder={missing ? `${active.toUpperCase()}…` : ''}
                 size={Math.max(current.length, missing ? 4 : 1)}
-                className="bg-transparent outline-none placeholder:text-amber-500"
+                className="bg-transparent outline-none placeholder:text-warn-ink"
               />
+              {/* Cible de 44 px, débordant discrètement de la pastille */}
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); removeTag(i) }}
-                className="ml-0.5 opacity-70 hover:opacity-100 transition-opacity"
+                aria-label={`Retirer ${current || tag[otherKey] || 'cet élément'}`}
+                className="-my-1.5 flex size-11 items-center justify-center opacity-80 transition-opacity hover:opacity-100"
               >
-                <X className="h-2.5 w-2.5" />
+                <X className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
               </button>
             </span>
           )
         })}
         <input
           ref={inputRef}
+          lang={active}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
           onBlur={() => { if (input) addTag(input) }}
+          aria-label="Nouvel élément"
           placeholder={
             value.length === 0
               ? (placeholder?.[active] ?? (active === 'fr' ? 'Ajouter…' : 'Add…'))
               : ''
           }
-          className="flex-1 min-w-[100px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          className="h-8 min-w-[100px] flex-1 bg-transparent px-1 text-base outline-none placeholder:text-muted"
         />
       </div>
 
@@ -157,7 +164,7 @@ export function BilingualTagInput({
                 if (value.length >= max) return
                 onChange([...value, { fr: s.fr, en: s.en }])
               }}
-              className="px-2.5 py-1 rounded-md border border-dashed border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+              className="min-h-11 rounded-sm border border-dashed border-hairline px-3 text-sm text-muted transition-colors hover:border-ink hover:text-ink"
             >
               + {s[active] || s[otherKey]}
             </button>
@@ -166,9 +173,9 @@ export function BilingualTagInput({
       )}
 
       {value.length > 0 && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted">
           {value.length} élément{value.length > 1 ? 's' : ''} · Entrée ou virgule pour ajouter ·
-          basculez 🇫🇷/🇬🇧 pour traduire chaque élément
+          basculez FR / EN pour traduire chaque élément
         </p>
       )}
     </div>

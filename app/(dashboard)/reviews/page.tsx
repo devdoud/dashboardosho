@@ -1,16 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { formatDate, formatDateTime, getInitials } from '@/lib/utils'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { PageHeader, SectionLabel, SpecRow } from '@/components/ui/atelier'
+import { cn, formatDate, formatDateTime } from '@/lib/utils'
 import type { TailorReview } from '@/types/database'
-import {
-  Star, Search, RefreshCw, Trash2, ChevronLeft, ChevronRight,
-  Quote, MessageSquare,
-} from 'lucide-react'
+import { Star, Search, RefreshCw, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const PAGE_SIZE = 12
 
@@ -24,46 +21,20 @@ function displayName(name: string | null | undefined, id: string, role: 'Tailleu
   return name || `${role} ${id.slice(0, 6)}`
 }
 
+/** Étoiles d'encre : la note se lit à la forme pleine/vide, pas à la couleur. */
 function StarRating({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'lg' }) {
   const cls = size === 'lg' ? 'h-5 w-5' : 'h-3.5 w-3.5'
   return (
-    <div className="flex gap-0.5">
+    <span className="inline-flex gap-0.5" role="img" aria-label={`${rating} sur 5`}>
       {Array.from({ length: 5 }).map((_, i) => (
-        <Star key={i} className={`${cls} ${i < rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/20'}`} />
+        <Star
+          key={i}
+          className={cn(cls, i < rating ? 'fill-ink text-ink' : 'text-muted')}
+          strokeWidth={1.75}
+          aria-hidden
+        />
       ))}
-    </div>
-  )
-}
-
-function ratingConfig(rating: number) {
-  if (rating === 5) return { cardBg: 'bg-emerald-50 dark:bg-emerald-950/20', barBg: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' }
-  if (rating === 4) return { cardBg: 'bg-sky-50 dark:bg-sky-950/20', barBg: 'bg-sky-500', text: 'text-sky-600 dark:text-sky-400' }
-  if (rating === 3) return { cardBg: 'bg-amber-50 dark:bg-amber-950/20', barBg: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
-  if (rating === 2) return { cardBg: 'bg-orange-50 dark:bg-orange-950/20', barBg: 'bg-orange-500', text: 'text-orange-600 dark:text-orange-400' }
-  return { cardBg: 'bg-red-50 dark:bg-red-950/20', barBg: 'bg-red-500', text: 'text-red-600 dark:text-red-400' }
-}
-
-const AVATAR_GRADIENTS = [
-  'from-violet-500 to-purple-600',
-  'from-blue-500 to-cyan-600',
-  'from-emerald-500 to-teal-600',
-  'from-rose-500 to-pink-600',
-  'from-amber-500 to-orange-600',
-  'from-indigo-500 to-blue-600',
-]
-
-function avatarGradient(name: string) {
-  let hash = 0
-  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) & 0xffffffff
-  return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length]
-}
-
-function GradientAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg' }) {
-  const dim = size === 'lg' ? 'h-12 w-12 text-sm' : size === 'sm' ? 'h-7 w-7 text-[10px]' : 'h-9 w-9 text-xs'
-  return (
-    <div className={`${dim} rounded-full bg-gradient-to-br ${avatarGradient(name)} flex items-center justify-center text-white font-semibold shrink-0`}>
-      {getInitials(name || '?')}
-    </div>
+    </span>
   )
 }
 
@@ -113,195 +84,143 @@ export default function ReviewsPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+    <div className="space-y-8">
+      <PageHeader
+        title="Avis clients"
+        description="Les retours des clients sur leurs tailleurs"
+        actions={
+          <Button variant="outline" size="icon" onClick={fetchReviews} disabled={loading} aria-label="Actualiser la liste">
+            <RefreshCw className={loading ? 'animate-spin' : ''} />
+          </Button>
+        }
+      />
+
+      {/* Note moyenne + distribution (qui sert aussi de filtre) */}
+      <div className="grid gap-8 border-y border-hairline py-6 sm:grid-cols-[200px_1fr]">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Avis clients</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Suivez et gérez les retours de vos clients</p>
+          <p className="eyebrow">Note moyenne</p>
+          <p className="mt-2 serif-lg text-5xl font-normal tabular-nums leading-none">
+            {avgRating > 0 ? avgRating.toFixed(1) : '—'}
+          </p>
+          <div className="mt-3"><StarRating rating={Math.round(avgRating)} size="lg" /></div>
+          <p className="mt-2 text-sm text-muted">
+            {globalTotal > 0 ? `${globalTotal} avis` : 'Aucun avis'}
+          </p>
         </div>
-        <Button variant="outline" size="icon" onClick={fetchReviews} disabled={loading} className="shrink-0 mt-0.5">
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-        </Button>
-      </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
-        {/* Note moyenne */}
-        <Card className="sm:w-48">
-          <CardContent className="p-6 flex flex-col items-center justify-center gap-2 text-center h-full">
-            <p className="text-6xl font-bold tracking-tight tabular-nums leading-none">
-              {avgRating > 0 ? avgRating.toFixed(1) : '—'}
-            </p>
-            <StarRating rating={Math.round(avgRating)} size="lg" />
-            <p className="text-xs text-muted-foreground mt-1">
-              {globalTotal > 0 ? `${globalTotal} avis` : 'Aucun avis'}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Distribution + filtres */}
-        <Card>
-          <CardContent className="p-5 space-y-2">
+        <div>
+          <p id="dist-label" className="eyebrow mb-1">Filtrer par note</p>
+          <div role="group" aria-labelledby="dist-label">
             {[5, 4, 3, 2, 1].map((r) => {
               const count = ratingDist[r] ?? 0
               const pct = globalTotal > 0 ? (count / globalTotal) * 100 : 0
-              const cfg = ratingConfig(r)
               const active = ratingFilter === r.toString()
               return (
                 <button
                   key={r}
+                  type="button"
+                  aria-pressed={active}
                   onClick={() => { setRatingFilter(active ? 'all' : r.toString()); setPage(0) }}
-                  className={`w-full flex items-center gap-3 px-2 py-1.5 rounded-lg transition-colors ${active ? 'bg-muted' : 'hover:bg-muted/50'}`}
+                  className={cn(
+                    'flex min-h-11 w-full items-center gap-4 rounded-sm px-2 transition-colors',
+                    active ? 'bg-surface outline outline-1 outline-ink' : 'hover:bg-surface'
+                  )}
                 >
-                  <div className="flex items-center gap-1 w-[88px] shrink-0">
-                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                    <span className={`text-xs font-medium ${active ? cfg.text : 'text-muted-foreground'}`}>
-                      {r} étoile{r > 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${cfg.barBg}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-muted-foreground tabular-nums w-8 text-right">{count}</span>
+                  <span className={cn('w-20 shrink-0 text-left text-md', active ? 'font-semibold text-ink' : 'text-ink')}>
+                    {r} étoile{r > 1 ? 's' : ''}
+                  </span>
+                  <span className="h-1.5 flex-1 bg-placeholder" aria-hidden>
+                    <span className="block h-full bg-ink" style={{ width: `${pct}%` }} />
+                  </span>
+                  <span className="w-10 text-right text-sm tabular-nums text-muted">{count}</span>
                 </button>
               )
             })}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      {/* Recherche */}
       <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <label htmlFor="reviews-search" className="sr-only">Rechercher dans les avis</label>
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" strokeWidth={1.75} aria-hidden />
         <Input
-          placeholder="Rechercher dans les avis…"
+          id="reviews-search"
+          type="search"
+          placeholder="Rechercher dans les avis"
           className="pl-9"
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(0) }}
         />
       </div>
 
-      {/* Grille d'avis */}
+      {/* Liste d'avis : des lignes séparées par des filets */}
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-5 space-y-3">
-                <div className="flex justify-between">
-                  <div className="h-3.5 bg-muted rounded w-24" />
-                  <div className="h-3 bg-muted rounded w-16" />
-                </div>
-                <div className="space-y-2 pt-1">
-                  <div className="h-3 bg-muted rounded w-full" />
-                  <div className="h-3 bg-muted rounded w-4/5" />
-                  <div className="h-3 bg-muted rounded w-2/3" />
-                </div>
-                <div className="flex items-center justify-between pt-3 border-t">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-muted" />
-                    <div className="h-3 bg-muted rounded w-20" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 bg-muted rounded w-20" />
-                    <div className="h-8 w-8 rounded-full bg-muted" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <ul className="border-t border-hairline">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <li key={i} className="space-y-2 border-b border-hairline py-4">
+              <div className="h-3.5 w-28 animate-pulse rounded-sm bg-placeholder" />
+              <div className="h-3.5 w-full animate-pulse rounded-sm bg-placeholder" />
+              <div className="h-3.5 w-2/3 animate-pulse rounded-sm bg-placeholder" />
+            </li>
           ))}
-        </div>
+        </ul>
       ) : reviews.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-            <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
-          </div>
+        <div className="border-y border-hairline py-16 text-center">
           <p className="text-base font-medium">Aucun avis trouvé</p>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="mt-1 text-md text-muted">
             {search || ratingFilter !== 'all'
-              ? 'Essayez de modifier vos filtres'
-              : 'Les avis de vos clients apparaîtront ici'}
+              ? 'Essayez de modifier vos filtres.'
+              : 'Les avis de vos clients apparaîtront ici.'}
           </p>
           {(search || ratingFilter !== 'all') && (
-            <Button variant="ghost" size="sm" className="mt-3" onClick={() => { setSearch(''); setRatingFilter('all') }}>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => { setSearch(''); setRatingFilter('all') }}>
               Réinitialiser les filtres
             </Button>
           )}
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="border-t border-hairline">
             {reviews.map((review) => {
-              const cfg = ratingConfig(review.rating)
+              const customer = displayName(review.customer_name, review.customer_id, 'Client')
+              const tailor = displayName(review.tailor_name, review.tailor_id, 'Tailleur')
               return (
-                <Card
-                  key={review.id}
-                  className="group cursor-pointer overflow-hidden hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
-                  onClick={() => setSelectedReview(review)}
-                >
-                  <div className={`h-1 w-full ${cfg.barBg}`} />
-                  <CardContent className="p-5 flex flex-col gap-3">
-                    {/* Top: étoiles + date */}
-                    <div className="flex items-center justify-between">
+                <li key={review.id} className="border-b border-hairline">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReview(review)}
+                    className="grid w-full gap-x-6 gap-y-2 px-2 py-4 text-left transition-colors hover:bg-surface md:grid-cols-[140px_1fr_220px]"
+                  >
+                    <div className="flex items-center gap-3 md:block">
                       <StarRating rating={review.rating} />
-                      <span className="text-[11px] text-muted-foreground tabular-nums">
-                        {formatDate(review.created_at)}
-                      </span>
+                      <p className="text-sm tabular-nums text-muted md:mt-1">{formatDate(review.created_at)}</p>
                     </div>
-
-                    {/* Commentaire */}
-                    <div className="relative flex-1 min-h-[64px]">
-                      <Quote className="absolute -top-0.5 -left-0.5 h-4 w-4 text-muted-foreground/20" />
-                      <p className="text-sm text-muted-foreground leading-relaxed pl-4 line-clamp-3">
-                        {review.review_text || <span className="italic">Aucun commentaire</span>}
-                      </p>
-                    </div>
-
-                    {/* Footer: client → tailleur */}
-                    {(() => {
-                      const customer = displayName(review.customer_name, review.customer_id, 'Client')
-                      const tailor = displayName(review.tailor_name, review.tailor_id, 'Tailleur')
-                      return (
-                        <div className="flex items-center justify-between gap-2 pt-3 border-t">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <GradientAvatar name={customer} size="sm" />
-                            <div className="min-w-0">
-                              <p className="text-xs font-medium truncate leading-tight">{customer}</p>
-                              <p className="text-[10px] text-muted-foreground">Client</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="min-w-0 text-right">
-                              <p className="text-xs font-medium truncate leading-tight">{tailor}</p>
-                              <p className="text-[10px] text-muted-foreground">Tailleur</p>
-                            </div>
-                            <GradientAvatar name={tailor} size="sm" />
-                          </div>
-                        </div>
-                      )
-                    })()}
-                  </CardContent>
-                </Card>
+                    <p className={cn('line-clamp-2 text-md leading-relaxed', review.review_text ? 'text-ink' : 'text-muted')}>
+                      {review.review_text || 'Aucun commentaire'}
+                    </p>
+                    <p className="text-sm text-muted md:text-right">
+                      <span className="text-ink">{customer}</span>
+                      <span aria-hidden> → </span>
+                      <span className="sr-only"> pour </span>
+                      <span className="text-ink">{tailor}</span>
+                    </p>
+                  </button>
+                </li>
               )
             })}
-          </div>
+          </ul>
 
-          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-1">
-              <p className="text-sm text-muted-foreground">
-                Page <span className="font-medium">{page + 1}</span> sur <span className="font-medium">{totalPages}</span>
-                <span className="text-muted-foreground/60"> · {total} résultat{total > 1 ? 's' : ''}</span>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted">
+                Page {page + 1} sur {totalPages} · {total} résultat{total > 1 ? 's' : ''}
               </p>
               <div className="flex gap-2">
-                <Button variant="outline" size="icon" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-                  <ChevronLeft className="h-4 w-4" />
+                <Button variant="outline" size="icon" disabled={page === 0} onClick={() => setPage((p) => p - 1)} aria-label="Page précédente">
+                  <ChevronLeft />
                 </Button>
-                <Button variant="outline" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
-                  <ChevronRight className="h-4 w-4" />
+                <Button variant="outline" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} aria-label="Page suivante">
+                  <ChevronRight />
                 </Button>
               </div>
             </div>
@@ -313,64 +232,42 @@ export default function ReviewsPage() {
       <Dialog open={!!selectedReview} onOpenChange={(open) => !open && setSelectedReview(null)}>
         <DialogContent className="max-w-md" aria-describedby={undefined}>
           <DialogHeader>
-            <DialogTitle>Détail de l&apos;avis</DialogTitle>
+            <DialogTitle>Avis</DialogTitle>
           </DialogHeader>
-          {selectedReview && (() => {
-            const cfg = ratingConfig(selectedReview.rating)
-            return (
-              <div className="space-y-4 pt-1">
-                {/* Note */}
-                <div className={`rounded-xl p-4 ${cfg.cardBg} flex items-center justify-between`}>
-                  <StarRating rating={selectedReview.rating} size="lg" />
-                  <span className={`text-2xl font-bold tabular-nums ${cfg.text}`}>
-                    {selectedReview.rating}<span className="text-base font-normal text-muted-foreground">/5</span>
-                  </span>
-                </div>
-
-                {/* Personnes */}
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: 'Client' as const, name: displayName(selectedReview.customer_name, selectedReview.customer_id, 'Client') },
-                    { label: 'Tailleur' as const, name: displayName(selectedReview.tailor_name, selectedReview.tailor_id, 'Tailleur') },
-                  ].map(({ label, name }) => (
-                    <div key={label} className="rounded-xl border bg-muted/30 p-3 flex items-center gap-3 min-w-0">
-                      <GradientAvatar name={name} size="md" />
-                      <div className="min-w-0">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-                        <p className="text-sm font-medium truncate" title={name}>{name}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Commentaire */}
-                {selectedReview.review_text ? (
-                  <div className="relative rounded-xl border bg-muted/20 p-4">
-                    <Quote className="absolute top-3 right-3 h-5 w-5 text-muted-foreground/20" />
-                    <p className="text-sm leading-relaxed pr-6">{selectedReview.review_text}</p>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed py-6 text-center">
-                    <p className="text-sm text-muted-foreground italic">Aucun commentaire laissé</p>
-                  </div>
-                )}
-
-                <p className="text-xs text-muted-foreground text-center">
-                  Publié le {formatDateTime(selectedReview.created_at)}
-                </p>
-
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => { setDeleteId(selectedReview.id); setSelectedReview(null) }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Supprimer cet avis
-                </Button>
+          {selectedReview && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between gap-4">
+                <StarRating rating={selectedReview.rating} size="lg" />
+                <span className="serif-lg text-3xl tabular-nums">
+                  {selectedReview.rating}<span className="text-xl text-muted"> / 5</span>
+                </span>
               </div>
-            )
-          })()}
+
+              <section className="space-y-2">
+                <SectionLabel>Commentaire</SectionLabel>
+                {selectedReview.review_text
+                  ? <p className="text-base leading-relaxed">{selectedReview.review_text}</p>
+                  : <p className="text-md text-muted">Aucun commentaire laissé.</p>}
+              </section>
+
+              <dl className="border-t border-hairline">
+                <SpecRow label="Client" value={displayName(selectedReview.customer_name, selectedReview.customer_id, 'Client')} />
+                <SpecRow label="Tailleur" value={displayName(selectedReview.tailor_name, selectedReview.tailor_id, 'Tailleur')} />
+                <SpecRow label="Publié le" value={formatDateTime(selectedReview.created_at)} />
+              </dl>
+            </div>
+          )}
+          {selectedReview && (
+            <DialogFooter>
+              <Button
+                variant="destructive"
+                onClick={() => { setDeleteId(selectedReview.id); setSelectedReview(null) }}
+              >
+                <Trash2 />
+                Supprimer cet avis
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -380,11 +277,11 @@ export default function ReviewsPage() {
           <DialogHeader>
             <DialogTitle>Supprimer l&apos;avis ?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">Cette action est irréversible.</p>
-          <div className="flex gap-2 justify-end pt-2">
+          <p className="text-md text-muted">Cette action est irréversible.</p>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Annuler</Button>
             <Button variant="destructive" onClick={() => deleteId && handleDelete(deleteId)}>Supprimer</Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

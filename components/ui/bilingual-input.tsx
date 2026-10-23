@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Check } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -13,6 +14,8 @@ export interface I18nValue {
 interface BilingualInputProps {
   value: I18nValue
   onChange: (value: I18nValue) => void
+  /** Rattache le champ à son <Label htmlFor>. */
+  id?: string
   placeholder?: { fr?: string; en?: string }
   multiline?: boolean
   rows?: number
@@ -20,14 +23,15 @@ interface BilingualInputProps {
   required?: boolean
 }
 
-const LANGS: { key: keyof I18nValue; flag: string; label: string }[] = [
-  { key: 'fr', flag: '🇫🇷', label: 'FR' },
-  { key: 'en', flag: '🇬🇧', label: 'EN' },
+const LANGS: { key: keyof I18nValue; label: string; name: string }[] = [
+  { key: 'fr', label: 'FR', name: 'Français' },
+  { key: 'en', label: 'EN', name: 'English' },
 ]
 
 export function BilingualInput({
   value,
   onChange,
+  id,
   placeholder,
   multiline = false,
   rows = 3,
@@ -46,18 +50,19 @@ export function BilingualInput({
   }
 
   const inputProps = {
+    id,
+    lang: active,
     value: currentVal,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => handleChange(e.target.value),
-    placeholder: placeholder?.[active] ?? (active === 'fr' ? 'Version française…' : 'English version…'),
+    placeholder: placeholder?.[active],
     required: required && active === 'fr',
-    className: 'rounded-tl-none',
   }
 
   return (
-    <div className={cn('', className)}>
-      {/* Tab bar */}
-      <div className="flex">
-        {LANGS.map(({ key, flag, label }) => {
+    <div className={className}>
+      {/* Bascule de langue */}
+      <div className="flex" role="group" aria-label="Langue du champ">
+        {LANGS.map(({ key, label, name }) => {
           const filled  = value[key].trim().length > 0
           const isActive = active === key
           return (
@@ -65,38 +70,33 @@ export function BilingualInput({
               key={key}
               type="button"
               onClick={() => setActive(key)}
+              aria-pressed={isActive}
+              aria-label={`${name}${filled ? ', rempli' : ''}`}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-b-0 transition-colors select-none',
-                key === 'fr' ? 'rounded-tl-md' : 'rounded-tr-md border-l-0',
+                'flex min-h-11 select-none items-center gap-1.5 border border-b-0 px-4 text-sm font-medium transition-colors',
+                key === 'fr' ? 'rounded-tl-sm' : 'rounded-tr-sm border-l-0',
                 isActive
-                  ? 'bg-background border-input text-foreground'
-                  : 'bg-muted/50 border-transparent text-muted-foreground hover:text-foreground'
+                  ? 'border-hairline bg-surface text-ink'
+                  : 'border-transparent text-muted hover:text-ink'
               )}
             >
-              <span>{flag}</span>
-              <span>{label}</span>
-              {/* Indicateur rempli */}
-              {filled && !isActive && (
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              )}
-              {required && key === 'fr' && !filled && (
-                <span className="text-destructive">*</span>
-              )}
+              {label}
+              {filled && !isActive && <Check className="h-3.5 w-3.5 text-ok-ink" strokeWidth={2} aria-hidden />}
+              {required && key === 'fr' && !filled && <span className="text-danger-ink" aria-hidden>*</span>}
             </button>
           )
         })}
       </div>
 
-      {/* Input / Textarea */}
       {multiline ? (
-        <Textarea {...inputProps} rows={rows} className={cn('rounded-tl-none', className)} />
+        <Textarea {...inputProps} rows={rows} className="rounded-tl-none" />
       ) : (
         <Input {...inputProps} className="rounded-tl-none" />
       )}
 
-      {/* Hint si l'autre langue est vide */}
+      {/* Rappel si l'autre langue est vide */}
       {!otherFilled && currentVal.trim().length > 0 && (
-        <p className="mt-1 text-[11px] text-amber-600">
+        <p className="mt-1.5 text-xs text-warn-ink">
           Version {otherKey === 'fr' ? 'française' : 'anglaise'} non remplie
         </p>
       )}

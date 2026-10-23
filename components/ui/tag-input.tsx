@@ -50,13 +50,13 @@ export function TagInput({
     <div className={cn('space-y-2', className)}>
       {/* Zone de saisie + tags existants */}
       <div
-        className="flex flex-wrap gap-1.5 min-h-10 w-full rounded-md border border-input bg-background px-3 py-2 cursor-text focus-within:ring-1 focus-within:ring-ring"
+        className="flex flex-wrap gap-1.5 min-h-10 w-full rounded-sm border border-hairline bg-bg px-3 py-2 cursor-text focus-within:border-ink"
         onClick={() => inputRef.current?.focus()}
       >
         {value.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary text-primary-foreground text-xs font-medium"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-primary-fill text-primary-ink text-xs font-medium"
           >
             {tag}
             <button
@@ -75,7 +75,7 @@ export function TagInput({
           onKeyDown={handleKey}
           onBlur={() => { if (input) addTag(input) }}
           placeholder={value.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[100px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          className="flex-1 min-w-[100px] bg-transparent text-sm outline-none placeholder:text-muted"
         />
       </div>
 
@@ -87,7 +87,7 @@ export function TagInput({
               key={s}
               type="button"
               onClick={() => addTag(s)}
-              className="px-2.5 py-1 rounded-md border border-dashed border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+              className="px-2.5 py-1 rounded-sm border border-dashed border-hairline text-xs text-muted hover:border-ink hover:text-ink transition-colors"
             >
               + {s}
             </button>
@@ -96,7 +96,7 @@ export function TagInput({
       )}
 
       {value.length > 0 && (
-        <p className="text-[11px] text-muted-foreground">{value.length} tag{value.length > 1 ? 's' : ''} · Entrée ou virgule pour ajouter · Backspace pour supprimer</p>
+        <p className="text-2xs text-muted">{value.length} tag{value.length > 1 ? 's' : ''} · Entrée ou virgule pour ajouter · Backspace pour supprimer</p>
       )}
     </div>
   )

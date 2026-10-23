@@ -10,12 +10,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!user) redirect('/login')
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div lang="fr" className="flex h-screen overflow-hidden bg-bg">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header userEmail={user.email ?? ''} />
-        <main className="flex-1 overflow-y-auto p-5 md:p-7">
-          {children}
+        <main className="flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-[1440px]">
+            {children}
+          </div>
         </main>
       </div>
     </div>

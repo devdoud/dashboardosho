@@ -38,10 +38,10 @@ export function PerfectForEditor({ value, onChange }: PerfectForEditorProps) {
           {value.map((v) => (
             <span
               key={v}
-              className="flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium"
+              className="flex items-center gap-1 rounded-sm bg-surface text-ink px-2.5 py-0.5 text-xs font-medium"
             >
               {v}
-              <button type="button" onClick={() => remove(v)} className="hover:text-destructive">
+              <button type="button" onClick={() => remove(v)} className="hover:text-danger-ink">
                 <X className="h-3 w-3" />
               </button>
             </span>
@@ -71,8 +71,8 @@ export function PerfectForEditor({ value, onChange }: PerfectForEditorProps) {
             type="button"
             onClick={() => add(s)}
             className={cn(
-              'rounded-full border border-dashed px-2.5 py-0.5 text-xs text-muted-foreground',
-              'hover:border-primary hover:text-primary transition-colors'
+              'rounded-sm border border-dashed px-2.5 py-0.5 text-xs text-muted',
+              'hover:border-ink hover:text-ink transition-colors'
             )}
           >
             + {s}

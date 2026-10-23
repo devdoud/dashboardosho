@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { orIlike } from '@/lib/supabase/query'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -11,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label'
 import { ImageUpload } from '@/components/ui/image-upload'
 import { BilingualInput, parseI18n, serializeI18n, type I18nValue } from '@/components/ui/bilingual-input'
+import { Notice, PageHeader } from '@/components/ui/atelier'
 import { formatDate, getLabel } from '@/lib/utils'
 import type { Category } from '@/types/database'
 import { Plus, Edit, Trash2, RefreshCw, Search, ImageIcon, Loader2 } from 'lucide-react'
@@ -125,129 +125,124 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Catégories</h1>
-          <p className="text-muted-foreground text-sm">{categories.length} catégories</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={fetchCategories} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" />
-            Nouvelle catégorie
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Catégories"
+        description={`${categories.length} catégories`}
+        actions={
+          <>
+            <Button variant="outline" size="icon" onClick={fetchCategories} disabled={loading} aria-label="Actualiser la liste">
+              <RefreshCw className={loading ? 'animate-spin' : ''} />
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus />
+              Nouvelle catégorie
+            </Button>
+          </>
+        }
+      />
 
-      {/* Search */}
       <div className="relative max-w-xs">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Rechercher…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <label htmlFor="categories-search" className="sr-only">Rechercher une catégorie</label>
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" strokeWidth={1.75} aria-hidden />
+        <Input id="categories-search" type="search" placeholder="Rechercher" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12" />
-                <TableHead>Nom</TableHead>
-                <TableHead>Slug</TableHead>
-                <TableHead className="text-right">Produits</TableHead>
-                <TableHead>Créée le</TableHead>
-                <TableHead />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-16"><span className="sr-only">Image</span></TableHead>
+            <TableHead>Nom</TableHead>
+            <TableHead>Slug</TableHead>
+            <TableHead className="text-right">Produits</TableHead>
+            <TableHead>Créée le</TableHead>
+            <TableHead><span className="sr-only">Actions</span></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 6 }).map((_, j) => (
+                  <TableCell key={j} className="py-4"><div className="h-4 animate-pulse rounded-sm bg-placeholder" /></TableCell>
+                ))}
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 6 }).map((_, j) => (
-                      <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : categories.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Aucune catégorie trouvée</TableCell>
-                </TableRow>
-              ) : (
-                categories.map((cat) => (
-                  <TableRow key={cat.id}>
-                    <TableCell>
-                      {cat.image ? (
-                        <div className="h-9 w-9 rounded-lg overflow-hidden border bg-muted shrink-0">
-                          <Image src={cat.image} alt={getLabel(cat.name)} width={36} height={36} className="h-full w-full object-cover" />
-                        </div>
-                      ) : (
-                        <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                          <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium">{getLabel(cat.name)}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{cat.slug}</TableCell>
-                    <TableCell className="text-right font-medium">{productCounts[cat.id] ?? 0}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{formatDate(cat.created_at)}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(cat)}><Edit className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteId(cat.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            ))
+          ) : categories.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={6} className="py-12 text-center text-muted">Aucune catégorie trouvée.</TableCell>
+            </TableRow>
+          ) : (
+            categories.map((cat) => (
+              <TableRow key={cat.id}>
+                <TableCell>
+                  {cat.image ? (
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-sm bg-placeholder">
+                      <Image src={cat.image} alt="" width={40} height={40} className="h-full w-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-placeholder">
+                      <ImageIcon className="h-4 w-4 text-placeholder-ink" strokeWidth={1.75} aria-hidden />
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell className="font-medium">{getLabel(cat.name)}</TableCell>
+                <TableCell className="font-mono text-sm text-muted">{cat.slug}</TableCell>
+                <TableCell className="text-right tabular-nums">{productCounts[cat.id] ?? 0}</TableCell>
+                <TableCell className="whitespace-nowrap text-sm text-muted">{formatDate(cat.created_at)}</TableCell>
+                <TableCell>
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(cat)} aria-label={`Modifier ${getLabel(cat.name)}`}><Edit /></Button>
+                    <Button variant="ghost" size="icon" className="text-danger-ink" onClick={() => setDeleteId(cat.id)} aria-label={`Supprimer ${getLabel(cat.name)}`}>
+                      <Trash2 />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md" aria-describedby={undefined}>
+        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>{editCategory ? 'Modifier la catégorie' : 'Nouvelle catégorie'}</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5 py-1">
+          <div className="space-y-5">
             {/* Nom bilingue */}
             <div className="space-y-1.5">
-              <Label>Nom <span className="text-destructive">*</span></Label>
+              <Label htmlFor="category-name">Nom <span className="text-danger-ink" aria-hidden>*</span></Label>
               <BilingualInput
+                id="category-name"
                 value={nameI18n}
                 onChange={(val) => {
                   setNameI18n(val)
                   if (!editCategory) setSlug(slugify(val.fr))
                 }}
-                placeholder={{ fr: 'Boubou homme, Kaftan femme…', en: 'Men Boubou, Women Kaftan…' }}
                 required
               />
             </div>
 
             {/* Slug */}
             <div className="space-y-1.5">
-              <Label>
-                Slug <span className="text-destructive">*</span>
-                <span className="ml-2 text-[11px] font-normal text-muted-foreground">généré automatiquement</span>
+              <Label htmlFor="category-slug">
+                Slug <span className="text-danger-ink" aria-hidden>*</span>
               </Label>
               <Input
+                id="category-slug"
                 value={slug}
                 onChange={(e) => setSlug(slugify(e.target.value))}
-                placeholder="boubou-homme"
-                className="font-mono text-sm"
+                aria-describedby="category-slug-hint"
+                className="font-mono"
               />
+              <p id="category-slug-hint" className="text-xs text-muted">Généré à partir du nom français.</p>
             </div>
 
             {/* Image */}
-            <div className="space-y-2 pt-1">
+            <div className="space-y-2">
               <Label>Image de la catégorie</Label>
               <div className="flex items-center gap-4">
                 <ImageUpload
@@ -258,25 +253,21 @@ export default function CategoriesPage() {
                   folder="categories"
                   size="lg"
                 />
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Format JPG ou PNG recommandé.<br />
-                  Ratio carré ou portrait (ex&nbsp;: 400×500&nbsp;px).
+                <p className="text-sm leading-relaxed text-muted">
+                  JPG ou PNG.<br />
+                  Ratio carré ou portrait (ex.&nbsp;400×500&nbsp;px).
                 </p>
               </div>
             </div>
 
-            {saveError && (
-              <p className="text-sm text-destructive rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2">
-                {saveError}
-              </p>
-            )}
+            {saveError && <Notice tone="danger">{saveError}</Notice>}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-              {editCategory ? 'Modifier' : 'Créer'}
+              {saving && <Loader2 className="animate-spin" />}
+              {editCategory ? 'Enregistrer' : 'Créer'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -286,7 +277,7 @@ export default function CategoriesPage() {
       <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <DialogContent className="max-w-sm" aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Supprimer la catégorie ?</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Les produits liés perdront leur catégorie.</p>
+          <p className="text-md text-muted">Les produits liés perdront leur catégorie.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Annuler</Button>
             <Button variant="destructive" onClick={() => deleteId && handleDelete(deleteId)}>Supprimer</Button>

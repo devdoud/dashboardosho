@@ -1,15 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { PageHeader, Price, StatRow } from '@/components/ui/atelier'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import type { PaymentAttempt, PaymentAttemptStatus } from '@/types/database'
-import { Search, RefreshCw, TrendingUp, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const STATUS_BADGE: Record<PaymentAttemptStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info' }> = {
   pending:    { label: 'En attente', variant: 'warning' },
@@ -60,78 +60,42 @@ export default function PaymentsPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Paiements</h1>
-          <p className="text-muted-foreground text-sm">{total} tentatives de paiement</p>
-        </div>
-        <Button variant="outline" size="icon" onClick={fetchPayments} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-        </Button>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Paiements"
+        description={`${total} tentatives de paiement`}
+        actions={
+          <Button variant="outline" size="icon" onClick={fetchPayments} disabled={loading} aria-label="Actualiser la liste">
+            <RefreshCw className={loading ? 'animate-spin' : ''} />
+          </Button>
+        }
+      />
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100">
-              <CheckCircle className="h-5 w-5 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-xl font-bold">{stats.totalSucceeded}</p>
-              <p className="text-xs text-muted-foreground">Réussis</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-100">
-              <XCircle className="h-5 w-5 text-red-600" />
-            </div>
-            <div>
-              <p className="text-xl font-bold">{stats.totalFailed}</p>
-              <p className="text-xs text-muted-foreground">Échoués</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100">
-              <Clock className="h-5 w-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-xl font-bold">{stats.totalPending}</p>
-              <p className="text-xs text-muted-foreground">En attente</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-              <TrendingUp className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-xl font-bold">{formatCurrency(stats.revenueMonth)}</p>
-              <p className="text-xs text-muted-foreground">Ce mois</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatRow
+        items={[
+          { label: 'Réussis', value: stats.totalSucceeded },
+          { label: 'Échoués', value: stats.totalFailed },
+          { label: 'En attente', value: stats.totalPending },
+          { label: 'Encaissé ce mois', value: formatCurrency(stats.revenueMonth) },
+        ]}
+      />
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      {/* Filtres */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative max-w-xs flex-1">
+          <label htmlFor="payments-search" className="sr-only">Rechercher un Payment Intent</label>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" strokeWidth={1.75} aria-hidden />
           <Input
-            placeholder="Rechercher PI..."
+            id="payments-search"
+            type="search"
+            placeholder="Rechercher un Payment Intent"
             className="pl-9"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0) }}
           />
         </div>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as PaymentAttemptStatus | 'all'); setPage(0) }}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="sm:w-52" aria-label="Filtrer par statut">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -145,69 +109,65 @@ export default function PaymentsPage() {
         </Select>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Payment Intent ID</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Devise</TableHead>
-                <TableHead className="text-right">Montant</TableHead>
-                <TableHead>Payé le</TableHead>
-                <TableHead>Erreur</TableHead>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Payment Intent</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead>Statut</TableHead>
+            <TableHead>Devise</TableHead>
+            <TableHead className="text-right">Montant</TableHead>
+            <TableHead>Payé le</TableHead>
+            <TableHead>Erreur</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 7 }).map((_, j) => (
+                  <TableCell key={j} className="py-4"><div className="h-4 animate-pulse rounded-sm bg-placeholder" /></TableCell>
+                ))}
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 7 }).map((_, j) => (
-                      <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : payments.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                    Aucun paiement trouvé
+            ))
+          ) : payments.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="py-12 text-center text-muted">
+                Aucun paiement trouvé.
+              </TableCell>
+            </TableRow>
+          ) : (
+            payments.map((p) => {
+              const s = STATUS_BADGE[p.status] ?? { label: p.status, variant: 'outline' as const }
+              return (
+                <TableRow key={p.id}>
+                  <TableCell className="py-3 font-mono text-sm">{p.stripe_payment_intent_id?.slice(0, 20)}…</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted">{formatDateTime(p.created_at)}</TableCell>
+                  <TableCell><Badge variant={s.variant}>{s.label}</Badge></TableCell>
+                  <TableCell className="text-sm uppercase">{p.currency}</TableCell>
+                  <TableCell className="text-right">
+                    <Price>{formatCurrency(p.amount, p.currency?.toUpperCase())}</Price>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted">{p.paid_at ? formatDateTime(p.paid_at) : ''}</TableCell>
+                  <TableCell className="max-w-[220px] truncate text-sm text-danger-ink" title={p.error_message ?? undefined}>
+                    {p.error_message ?? ''}
                   </TableCell>
                 </TableRow>
-              ) : (
-                payments.map((p) => {
-                  const s = STATUS_BADGE[p.status] ?? { label: p.status, variant: 'outline' as const }
-                  return (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-mono text-xs">{p.stripe_payment_intent_id?.slice(0, 20)}…</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{formatDateTime(p.created_at)}</TableCell>
-                      <TableCell><Badge variant={s.variant}>{s.label}</Badge></TableCell>
-                      <TableCell className="uppercase text-xs">{p.currency}</TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(p.amount, p.currency?.toUpperCase())}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{formatDateTime(p.paid_at)}</TableCell>
-                      <TableCell className="text-xs text-destructive max-w-[200px] truncate">
-                        {p.error_message ?? '—'}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              )
+            })
+          )}
+        </TableBody>
+      </Table>
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">Page {page + 1} / {totalPages}</p>
+          <p className="text-sm text-muted">Page {page + 1} sur {totalPages}</p>
           <div className="flex gap-2">
-            <Button variant="outline" size="icon" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-              <ChevronLeft className="h-4 w-4" />
+            <Button variant="outline" size="icon" disabled={page === 0} onClick={() => setPage((p) => p - 1)} aria-label="Page précédente">
+              <ChevronLeft />
             </Button>
-            <Button variant="outline" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
-              <ChevronRight className="h-4 w-4" />
+            <Button variant="outline" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} aria-label="Page suivante">
+              <ChevronRight />
             </Button>
           </div>
         </div>

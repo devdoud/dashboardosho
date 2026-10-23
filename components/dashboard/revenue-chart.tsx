@@ -1,8 +1,9 @@
 'use client'
 
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -15,46 +16,57 @@ interface RevenueChartProps {
   data: { month: string; revenue: number }[]
 }
 
+// L'encre pour les mois passés, un seul accent pour le mois en cours.
+// Les couleurs sont des jetons CSS, donc suivent le thème.
 export function RevenueChart({ data }: RevenueChartProps) {
+  const last = data.length - 1
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-        <defs>
-          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="hsl(221.2 83.2% 53.3%)" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="hsl(221.2 83.2% 53.3%)" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(214.3 31.8% 91.4%)" />
-        <XAxis
-          dataKey="month"
-          tick={{ fontSize: 12, fill: 'hsl(215.4 16.3% 46.9%)' }}
-          axisLine={false}
-          tickLine={false}
-        />
-        <YAxis
-          tick={{ fontSize: 12, fill: 'hsl(215.4 16.3% 46.9%)' }}
-          axisLine={false}
-          tickLine={false}
-          tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-        />
-        <Tooltip
-          formatter={(value: number) => [formatCurrency(value), 'Revenus']}
-          contentStyle={{
-            background: 'hsl(0 0% 100%)',
-            border: '1px solid hsl(214.3 31.8% 91.4%)',
-            borderRadius: '8px',
-            fontSize: '12px',
-          }}
-        />
-        <Area
-          type="monotone"
-          dataKey="revenue"
-          stroke="hsl(221.2 83.2% 53.3%)"
-          strokeWidth={2}
-          fill="url(#colorRevenue)"
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+    <figure>
+      <ResponsiveContainer width="100%" height={280}>
+        <BarChart data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }} barCategoryGap="28%">
+          <CartesianGrid vertical={false} stroke="var(--hairline)" />
+          <XAxis
+            dataKey="month"
+            tick={{ fontSize: 12.5, fill: 'var(--muted)' }}
+            axisLine={{ stroke: 'var(--hairline)' }}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 12.5, fill: 'var(--muted)' }}
+            axisLine={false}
+            tickLine={false}
+            width={44}
+            tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+          />
+          <Tooltip
+            cursor={{ fill: 'var(--surface)' }}
+            formatter={(value: number) => [formatCurrency(value), 'Revenus']}
+            contentStyle={{
+              background: 'var(--surface)',
+              border: '1px solid var(--hairline)',
+              borderRadius: 2,
+              boxShadow: 'none',
+              color: 'var(--ink)',
+              fontSize: 13.5,
+            }}
+            labelStyle={{ color: 'var(--muted)' }}
+            itemStyle={{ color: 'var(--ink)' }}
+          />
+          <Bar dataKey="revenue" radius={0} isAnimationActive={false}>
+            {data.map((_, i) => (
+              <Cell key={i} fill={i === last ? 'var(--accent)' : 'var(--ink)'} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+      <figcaption className="mt-2 flex items-center gap-4 text-xs text-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 bg-ink" aria-hidden /> Mois écoulés
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 bg-accent" aria-hidden /> Mois en cours
+        </span>
+      </figcaption>
+    </figure>
   )
 }

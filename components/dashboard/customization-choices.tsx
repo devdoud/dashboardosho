@@ -25,18 +25,18 @@ interface ChoiceCardProps {
 function ChoiceCard({ label, name, imageUrl, icon: Icon }: ChoiceCardProps) {
   if (!name) return null
   return (
-    <div className="flex items-center gap-3 rounded-lg border bg-muted/20 p-2.5">
-      <div className="relative h-12 w-12 shrink-0 rounded-lg overflow-hidden bg-muted">
+    <div className="flex items-center gap-3 rounded-sm border bg-surface p-2.5">
+      <div className="relative h-12 w-12 shrink-0 rounded-sm overflow-hidden bg-placeholder">
         {imageUrl ? (
           <Image src={imageUrl} alt={name} fill className="object-cover" sizes="48px" />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            <Icon className="h-5 w-5 text-muted-foreground" />
+            <Icon className="h-5 w-5 text-muted" />
           </div>
         )}
       </div>
       <div className="min-w-0">
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-xs text-muted">{label}</p>
         <p className="text-sm font-semibold truncate">{name}</p>
       </div>
     </div>

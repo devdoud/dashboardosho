@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,10 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Separator } from '@/components/ui/separator'
-import { formatDate, getInitials } from '@/lib/utils'
+import { Notice, PageHeader, SectionLabel, SpecRow, StatRow } from '@/components/ui/atelier'
+import { cn, formatDate, getInitials } from '@/lib/utils'
 import type { UserRoleType } from '@/types/database'
-import { Search, RefreshCw, Pencil, Users, Scissors, ShoppingBag, MapPin, Mail, Phone, Loader2 } from 'lucide-react'
+import { Search, RefreshCw, Pencil, Loader2 } from 'lucide-react'
 
 interface AuthUser {
   id: string
@@ -149,59 +148,44 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Utilisateurs</h1>
-          <p className="text-muted-foreground text-sm">{counts.total} comptes</p>
-        </div>
-        <Button variant="outline" size="icon" onClick={fetchUsers} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-        </Button>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Utilisateurs"
+        description={`${counts.total} comptes`}
+        actions={
+          <Button variant="outline" size="icon" onClick={fetchUsers} disabled={loading} aria-label="Actualiser la liste">
+            <RefreshCw className={loading ? 'animate-spin' : ''} />
+          </Button>
+        }
+      />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: 'Clients',   count: counts.customers, icon: ShoppingBag, color: 'text-blue-600',   bg: 'bg-blue-50' },
-          { label: 'Tailleurs', count: counts.tailors,   icon: Scissors,    color: 'text-violet-600', bg: 'bg-violet-50' },
-          { label: 'Admins',    count: counts.admins,    icon: Users,       color: 'text-primary',    bg: 'bg-primary/10' },
-          { label: 'Sans rôle', count: counts.no_role,   icon: Users,       color: 'text-amber-600',  bg: 'bg-amber-50' },
-        ].map(({ label, count, icon: Icon, color, bg }) => (
-          <Card key={label}>
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${bg}`}>
-                <Icon className={`h-4 w-4 ${color}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{count}</p>
-                <p className="text-xs text-muted-foreground">{label}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <StatRow
+        items={[
+          { label: 'Clients',   value: counts.customers },
+          { label: 'Tailleurs', value: counts.tailors },
+          { label: 'Admins',    value: counts.admins },
+          { label: 'Sans rôle', value: counts.no_role },
+        ]}
+      />
 
-      {error && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+      {error && <Notice tone="danger">{error}</Notice>}
 
       {/* Filtres */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative max-w-xs flex-1">
+          <label htmlFor="users-search" className="sr-only">Rechercher par nom, email ou ville</label>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" strokeWidth={1.75} aria-hidden />
           <Input
-            placeholder="Nom, email, ville…"
+            id="users-search"
+            type="search"
+            placeholder="Nom, email, ville"
             className="pl-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as typeof roleFilter)}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="sm:w-52" aria-label="Filtrer par rôle">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -214,212 +198,153 @@ export default function UsersPage() {
         </Select>
       </div>
 
-      {/* Tableau */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Utilisateur</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Rôle</TableHead>
-                <TableHead className="text-right">Commandes</TableHead>
-                <TableHead>Dernière connexion</TableHead>
-                <TableHead>Inscrit le</TableHead>
-                <TableHead />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Utilisateur</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Rôle</TableHead>
+            <TableHead className="text-right">Commandes</TableHead>
+            <TableHead>Dernière connexion</TableHead>
+            <TableHead>Inscrit le</TableHead>
+            <TableHead><span className="sr-only">Actions</span></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 7 }).map((_, j) => (
+                  <TableCell key={j} className="py-4"><div className="h-4 animate-pulse rounded-sm bg-placeholder" /></TableCell>
+                ))}
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 7 }).map((_, j) => (
-                      <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                    {error ? 'Impossible de charger les utilisateurs.' : 'Aucun utilisateur trouvé.'}
+            ))
+          ) : filtered.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="py-12 text-center text-muted">
+                {error ? 'Impossible de charger les utilisateurs.' : 'Aucun utilisateur trouvé.'}
+              </TableCell>
+            </TableRow>
+          ) : (
+            filtered.map((user) => {
+              const rb = user.role ? ROLE_BADGE[user.role] : { label: 'Aucun', variant: 'outline' as const }
+              const displayName = user.full_name ?? user.email.split('@')[0]
+              return (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="truncate text-md font-medium">{displayName}</p>
+                        {user.city && <p className="text-sm text-muted">{user.city}</p>}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted">{user.email}</TableCell>
+                  <TableCell><Badge variant={rb.variant}>{rb.label}</Badge></TableCell>
+                  <TableCell className="text-right tabular-nums">{user.order_count}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted">
+                    {user.last_sign_in ? formatDate(user.last_sign_in) : ''}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted">
+                    {formatDate(user.created_at)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon" onClick={() => openUser(user)} aria-label={`Modifier ${displayName}`}>
+                      <Pencil />
+                    </Button>
                   </TableCell>
                 </TableRow>
-              ) : (
-                filtered.map((user) => {
-                  const rb = user.role ? ROLE_BADGE[user.role] : { label: 'Aucun', variant: 'outline' as const }
-                  const displayName = user.full_name ?? user.email.split('@')[0]
-                  return (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="text-xs font-semibold bg-muted">
-                              {getInitials(displayName)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{displayName}</p>
-                            {user.city && (
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <MapPin className="h-2.5 w-2.5" />{user.city}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{user.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={rb.variant} className="text-xs">{rb.label}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">{user.order_count}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {user.last_sign_in ? formatDate(user.last_sign_in) : '—'}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatDate(user.created_at)}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => openUser(user)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              )
+            })
+          )}
+        </TableBody>
+      </Table>
 
       {/* Dialog édition */}
       <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
-        <DialogContent className="max-w-md" aria-describedby={undefined}>
+        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Modifier l&apos;utilisateur</DialogTitle>
           </DialogHeader>
 
           {selectedUser && (
-            <div className="space-y-5">
-              {/* Avatar + email (non modifiable) */}
+            <div className="space-y-6">
+              {/* Identité (non modifiable) */}
               <div className="flex items-center gap-3">
                 <Avatar className="h-12 w-12">
-                  <AvatarFallback className="text-base font-bold bg-primary text-primary-foreground">
-                    {getInitials(editName || selectedUser.email)}
-                  </AvatarFallback>
+                  <AvatarFallback className="text-sm">{getInitials(editName || selectedUser.email)}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{editName || '—'}</p>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                    <Mail className="h-3 w-3" />
-                    <span className="truncate">{selectedUser.email}</span>
-                  </div>
+                  <p className="truncate text-base font-medium">{editName || selectedUser.email.split('@')[0]}</p>
+                  <p className="truncate text-sm text-muted">{selectedUser.email}</p>
                 </div>
               </div>
 
-              <Separator />
-
-              {/* Champs éditables */}
-              <div className="grid gap-3">
+              {/* Champs éditables — ni icône décorative, ni valeur d'exemple à recopier */}
+              <div className="grid gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-name" className="text-xs font-medium">Nom complet</Label>
-                  <div className="relative">
-                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      id="edit-name"
-                      className="pl-8 h-9 text-sm"
-                      placeholder="Nom complet"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                    />
-                  </div>
+                  <Label htmlFor="edit-name">Nom complet</Label>
+                  <Input id="edit-name" autoComplete="off" value={editName} onChange={(e) => setEditName(e.target.value)} />
                 </div>
-
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-phone" className="text-xs font-medium">Téléphone</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      id="edit-phone"
-                      className="pl-8 h-9 text-sm"
-                      placeholder="+221 77 000 00 00"
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                    />
-                  </div>
+                  <Label htmlFor="edit-phone">Téléphone</Label>
+                  <Input id="edit-phone" type="tel" autoComplete="off" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
                 </div>
-
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-city" className="text-xs font-medium">Ville</Label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      id="edit-city"
-                      className="pl-8 h-9 text-sm"
-                      placeholder="Dakar"
-                      value={editCity}
-                      onChange={(e) => setEditCity(e.target.value)}
-                    />
-                  </div>
+                  <Label htmlFor="edit-city">Ville</Label>
+                  <Input id="edit-city" autoComplete="off" value={editCity} onChange={(e) => setEditCity(e.target.value)} />
                 </div>
               </div>
-
-              <Separator />
 
               {/* Rôle */}
               <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rôle</p>
-                <div className="flex gap-2 flex-wrap">
-                  {(['customer', 'tailor', ...(isSuperAdmin ? ['admin'] : []), null] as (UserRoleType | null)[]).map((r) => (
-                    <button
-                      key={r ?? 'none'}
-                      type="button"
-                      onClick={() => setEditRole(r)}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                        editRole === r
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background hover:bg-muted border-border'
-                      }`}
-                    >
-                      {r === null ? 'Aucun rôle' : ROLE_BADGE[r]?.label ?? r}
-                    </button>
-                  ))}
+                <SectionLabel id="role-label">Rôle</SectionLabel>
+                <div className="flex flex-wrap gap-2" role="group" aria-labelledby="role-label">
+                  {(['customer', 'tailor', ...(isSuperAdmin ? ['admin'] : []), null] as (UserRoleType | null)[]).map((r) => {
+                    const active = editRole === r
+                    return (
+                      <button
+                        key={r ?? 'none'}
+                        type="button"
+                        onClick={() => setEditRole(r)}
+                        aria-pressed={active}
+                        className={cn(
+                          'min-h-11 rounded-sm border px-3.5 text-sm font-medium transition-colors',
+                          active
+                            ? 'border-primary-fill bg-primary-fill text-primary-ink'
+                            : 'border-hairline bg-surface text-ink hover:border-ink'
+                        )}
+                      >
+                        {r === null ? 'Aucun rôle' : ROLE_BADGE[r]?.label ?? r}
+                      </button>
+                    )
+                  })}
                 </div>
                 {!isSuperAdmin && editRole === 'admin' && (
-                  <p className="text-xs text-amber-600">Seul le super admin peut modifier ce rôle.</p>
+                  <p className="text-sm text-warn-ink">Seul le super admin peut modifier ce rôle.</p>
                 )}
               </div>
 
-              {/* Stats (lecture seule) */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] text-muted-foreground">Commandes</p>
-                  <p className="font-bold text-lg leading-tight">{selectedUser.order_count}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] text-muted-foreground">Inscrit le</p>
-                  <p className="font-medium text-xs leading-tight mt-0.5">{formatDate(selectedUser.created_at)}</p>
-                </div>
-              </div>
+              {/* Lecture seule */}
+              <dl className="border-t border-hairline">
+                <SpecRow label="Commandes" value={String(selectedUser.order_count)} valueClassName="tabular-nums" />
+                <SpecRow label="Inscrit le" value={formatDate(selectedUser.created_at)} />
+                <SpecRow label="UUID" value={selectedUser.id} valueClassName="select-all break-all font-mono text-sm" />
+              </dl>
 
-              {/* UUID */}
-              <div className="rounded-lg bg-muted/30 px-3 py-2">
-                <p className="text-[10px] text-muted-foreground mb-0.5">UUID</p>
-                <p className="text-xs font-mono break-all select-all">{selectedUser.id}</p>
-              </div>
-
-              {saveError && (
-                <p className="text-xs text-destructive">{saveError}</p>
-              )}
+              {saveError && <Notice tone="danger">{saveError}</Notice>}
             </div>
           )}
 
-          <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => setSelectedUser(null)}>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedUser(null)}>
               Annuler
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+            <Button onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="animate-spin" />}
               Enregistrer
             </Button>
           </DialogFooter>

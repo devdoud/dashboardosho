@@ -1,21 +1,20 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { formatCurrency, formatDateTime, getLabel } from '@/lib/utils'
+import { Notice, PageHeader, Price, SectionLabel, SpecRow } from '@/components/ui/atelier'
+import { cn, formatCurrency, formatDateTime, getLabel } from '@/lib/utils'
 import type { Order, OrderStatus, PaymentStatus, OrderAssignment, AssignmentStatus } from '@/types/database'
 import {
   Search, Eye, RefreshCw, ChevronLeft, ChevronRight,
-  Scissors, CheckCircle, XCircle, Clock, AlertCircle, Loader2, Package, MessageSquare, User, Truck,
+  Scissors, CheckCircle, XCircle, Clock, AlertCircle, Loader2, Package, MessageSquare, Truck, X,
 } from 'lucide-react'
 import Image from 'next/image'
 
@@ -296,36 +295,39 @@ export default function OrdersPage() {
   )
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Commandes</h1>
-          <p className="text-muted-foreground text-sm">{total} commandes au total</p>
-        </div>
-        <Button variant="outline" size="icon" onClick={fetchOrders} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-        </Button>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Commandes"
+        description={`${total} commandes au total`}
+        actions={
+          <Button variant="outline" size="icon" onClick={fetchOrders} disabled={loading} aria-label="Actualiser la liste">
+            <RefreshCw className={loading ? 'animate-spin' : ''} />
+          </Button>
+        }
+      />
 
       {/* Filtres */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative max-w-xs flex-1">
+          <label htmlFor="orders-search" className="sr-only">Rechercher une commande par identifiant</label>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" strokeWidth={1.75} aria-hidden />
           <Input
-            placeholder="Rechercher par ID..."
+            id="orders-search"
+            type="search"
+            placeholder="Rechercher par identifiant"
             className="pl-9"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0) }}
           />
         </div>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as OrderStatus | 'all'); setPage(0) }}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="sm:w-52" aria-label="Filtrer par statut"><SelectValue /></SelectTrigger>
           <SelectContent>
             {ORDER_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={paymentFilter} onValueChange={(v) => { setPaymentFilter(v as PaymentStatus | 'all'); setPage(0) }}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="sm:w-52" aria-label="Filtrer par paiement"><SelectValue /></SelectTrigger>
           <SelectContent>
             {PAYMENT_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
           </SelectContent>
@@ -333,97 +335,91 @@ export default function OrdersPage() {
       </div>
 
       {/* Tableau */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Paiement</TableHead>
-                <TableHead>Méthode</TableHead>
-                <TableHead>Tailleur</TableHead>
-                <TableHead className="text-right">Montant</TableHead>
-                <TableHead className="w-8" />
-                <TableHead />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Identifiant</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead>Statut</TableHead>
+            <TableHead>Paiement</TableHead>
+            <TableHead>Méthode</TableHead>
+            <TableHead>Tailleur</TableHead>
+            <TableHead className="text-right">Montant</TableHead>
+            <TableHead className="w-8"><span className="sr-only">Note client</span></TableHead>
+            <TableHead><span className="sr-only">Actions</span></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 9 }).map((_, j) => (
+                  <TableCell key={j} className="py-4"><div className="h-4 animate-pulse rounded-sm bg-placeholder" /></TableCell>
+                ))}
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 8 }).map((_, j) => (
-                      <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : orders.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
-                    Aucune commande trouvée
+            ))
+          ) : orders.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={9} className="py-12 text-center text-muted">
+                Aucune commande trouvée.
+              </TableCell>
+            </TableRow>
+          ) : (
+            orders.map((order) => {
+              const os = ORDER_STATUS_BADGE[order.status]   ?? { label: order.status   ?? '—', variant: 'outline' as const }
+              const ps = PAYMENT_STATUS_BADGE[order.payment_status] ?? { label: order.payment_status ?? '—', variant: 'outline' as const }
+              const tailorName = order.tailor_name
+                ?? (order.primary_tailor_id ? tailors.find((t) => t.id === order.primary_tailor_id)?.name : null)
+              return (
+                <TableRow key={order.id}>
+                  <TableCell className="font-mono text-sm">{order.id.slice(0, 8)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted">{formatDateTime(order.created_at)}</TableCell>
+                  <TableCell><Badge variant={os.variant}>{os.label}</Badge></TableCell>
+                  <TableCell><Badge variant={ps.variant}>{ps.label}</Badge></TableCell>
+                  <TableCell className="text-sm capitalize">{order.payment_method ?? ''}</TableCell>
+                  <TableCell>
+                    {tailorName ? (
+                      <span className="text-md">{tailorName}</span>
+                    ) : order.status === 'processing' ? (
+                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-warn-ink">
+                        <AlertCircle className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+                        À réassigner
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted">Non assigné</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right"><Price>{formatCurrency(order.total_amount)}</Price></TableCell>
+                  <TableCell>
+                    {order.customer_note && (
+                      <span title={order.customer_note} className="inline-flex text-warn-ink">
+                        <MessageSquare className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+                        <span className="sr-only">Le client a laissé une note</span>
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon" onClick={() => openOrderDetail(order)} aria-label={`Voir la commande ${order.id.slice(0, 8)}`}>
+                      <Eye />
+                    </Button>
                   </TableCell>
                 </TableRow>
-              ) : (
-                orders.map((order) => {
-                  const os = ORDER_STATUS_BADGE[order.status]   ?? { label: order.status   ?? '—', variant: 'outline' as const }
-                  const ps = PAYMENT_STATUS_BADGE[order.payment_status] ?? { label: order.payment_status ?? '—', variant: 'outline' as const }
-                  const tailorName = order.tailor_name
-                    ?? (order.primary_tailor_id ? tailors.find((t) => t.id === order.primary_tailor_id)?.name : null)
-                  return (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}…</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{formatDateTime(order.created_at)}</TableCell>
-                      <TableCell><Badge variant={os.variant}>{os.label}</Badge></TableCell>
-                      <TableCell><Badge variant={ps.variant}>{ps.label}</Badge></TableCell>
-                      <TableCell className="text-xs capitalize">{order.payment_method ?? '—'}</TableCell>
-                      <TableCell>
-                        {tailorName ? (
-                          <div className="flex items-center gap-1.5 text-xs">
-                            <Scissors className="h-3 w-3 text-muted-foreground" />
-                            <span>{tailorName}</span>
-                          </div>
-                        ) : order.status === 'processing' ? (
-                          <div className="flex items-center gap-1.5 text-xs text-amber-600 font-medium">
-                            <AlertCircle className="h-3 w-3" />
-                            <span>À réassigner</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">Non assigné</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(order.total_amount)}</TableCell>
-                      <TableCell>
-                        {order.customer_note && (
-                          <span title={order.customer_note}>
-                            <MessageSquare className="h-3.5 w-3.5 text-amber-500" />
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => openOrderDetail(order)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              )
+            })
+          )}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">Page {page + 1} / {totalPages} ({total} résultats)</p>
+          <p className="text-sm text-muted">Page {page + 1} sur {totalPages} · {total} résultats</p>
           <div className="flex gap-2">
-            <Button variant="outline" size="icon" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-              <ChevronLeft className="h-4 w-4" />
+            <Button variant="outline" size="icon" disabled={page === 0} onClick={() => setPage((p) => p - 1)} aria-label="Page précédente">
+              <ChevronLeft />
             </Button>
-            <Button variant="outline" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
-              <ChevronRight className="h-4 w-4" />
+            <Button variant="outline" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} aria-label="Page suivante">
+              <ChevronRight />
             </Button>
           </div>
         </div>
@@ -431,59 +427,54 @@ export default function OrdersPage() {
 
       {/* ── Dialog détail commande ── */}
       <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
-            <DialogTitle>Détail de la commande</DialogTitle>
+            <DialogTitle>Commande {selectedOrder ? `#${selectedOrder.id.slice(0, 8)}` : ''}</DialogTitle>
           </DialogHeader>
 
           {selectedOrder && (
-            <div className="space-y-5">
+            <div className="space-y-7">
 
-              {/* ── Informations client ── */}
-              <div className="rounded-lg border p-3 flex items-start gap-3">
-                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <User className="h-4 w-4 text-primary" />
-                </div>
+              {/* ── Client ── */}
+              <section className="space-y-2">
+                <SectionLabel>Client</SectionLabel>
                 {customer ? (
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold leading-tight">{customer.name}</p>
-                    {customer.email && (
-                      <p className="text-xs text-muted-foreground truncate">{customer.email}</p>
-                    )}
-                    {customer.phone && (
-                      <p className="text-xs text-muted-foreground">{customer.phone}</p>
-                    )}
+                    <p className="text-base font-medium">{customer.name}</p>
+                    {customer.email && <p className="truncate text-sm text-muted">{customer.email}</p>}
+                    {customer.phone && <p className="text-sm text-muted">{customer.phone}</p>}
                   </div>
                 ) : (
-                  <div className="space-y-1">
-                    <div className="h-4 w-36 bg-muted animate-pulse rounded" />
-                    <div className="h-3 w-48 bg-muted animate-pulse rounded" />
+                  <div className="space-y-1.5">
+                    <div className="h-4 w-40 animate-pulse rounded-sm bg-placeholder" />
+                    <div className="h-3.5 w-52 animate-pulse rounded-sm bg-placeholder" />
                   </div>
                 )}
-                <span className="ml-auto font-mono text-xs text-muted-foreground shrink-0">
-                  #{selectedOrder.id.slice(0, 8)}
-                </span>
-              </div>
+              </section>
 
-              {/* Statut commande */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1.5">Statut commande</p>
-                  <div className="flex flex-wrap gap-1.5">
+              {/* ── Statut ── */}
+              <section className="grid gap-5 sm:grid-cols-[1fr_auto]">
+                <div className="space-y-2">
+                  <SectionLabel id="order-status-label">Statut de la commande</SectionLabel>
+                  <div className="flex flex-wrap gap-2" role="group" aria-labelledby="order-status-label">
                     {(['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as OrderStatus[]).map((s) => {
                       // « Expédié » est verrouillé tant que le tailleur n'a pas terminé la commande
                       const shipLocked = s === 'shipped' && !hasCompletedAssignment && selectedOrder.status !== 'shipped'
+                      const active = selectedOrder.status === s
                       return (
                         <button
                           key={s}
+                          type="button"
                           onClick={() => updateOrderStatus(selectedOrder.id, s)}
                           disabled={updatingId === selectedOrder.id || shipLocked}
+                          aria-pressed={active}
                           title={shipLocked ? 'La commande doit être terminée par le tailleur' : undefined}
-                          className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
-                            selectedOrder.status === s
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-background hover:bg-muted border-border'
-                          } ${shipLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
+                          className={cn(
+                            'min-h-11 rounded-sm border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                            active
+                              ? 'border-primary-fill bg-primary-fill text-primary-ink'
+                              : 'border-hairline bg-surface text-ink hover:border-ink'
+                          )}
                         >
                           {ORDER_STATUS_BADGE[s].label}
                         </button>
@@ -491,30 +482,29 @@ export default function OrdersPage() {
                     })}
                   </div>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1.5">Paiement</p>
+                <div className="space-y-2">
+                  <SectionLabel>Paiement</SectionLabel>
                   <Badge variant={(PAYMENT_STATUS_BADGE[selectedOrder.payment_status] ?? { variant: 'outline' }).variant}>
                     {(PAYMENT_STATUS_BADGE[selectedOrder.payment_status] ?? { label: selectedOrder.payment_status ?? '—' }).label}
                   </Badge>
                 </div>
-              </div>
+              </section>
 
               {/* ── Action expédition ── */}
               {!['shipped', 'delivered', 'cancelled'].includes(selectedOrder.status) && (
-                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                <div className="space-y-2">
                   <Button
                     className="w-full"
                     disabled={!hasCompletedAssignment || updatingId === selectedOrder.id}
                     onClick={() => updateOrderStatus(selectedOrder.id, 'shipped')}
                   >
                     {updatingId === selectedOrder.id
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Truck className="h-4 w-4" />}
-                    Marquer comme expédié
+                      ? <Loader2 className="animate-spin" />
+                      : <Truck />}
+                    Marquer comme expédiée
                   </Button>
                   {!hasCompletedAssignment && (
-                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    <p className="text-sm text-muted">
                       Disponible une fois la commande terminée par le tailleur.
                     </p>
                   )}
@@ -522,135 +512,102 @@ export default function OrdersPage() {
               )}
 
               {selectedOrder.status === 'shipped' && (
-                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                  <Truck className="h-4 w-4 shrink-0" />
-                  Commande expédiée — visible dans le suivi du client.
-                </div>
+                <Notice tone="ok" icon={Truck}>Commande expédiée — visible dans le suivi du client.</Notice>
               )}
 
-              {statusError && (
-                <div className="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                  {statusError}
-                </div>
-              )}
+              {statusError && <Notice tone="danger">{statusError}</Notice>}
 
               {/* ── Note du client ── */}
               {selectedOrder.customer_note && (
-                <div className="flex gap-3 rounded-lg border-l-4 border-amber-400 bg-amber-50 px-4 py-3">
-                  <MessageSquare className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-amber-700 mb-1 uppercase tracking-wide">Note du client</p>
-                    <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">{selectedOrder.customer_note}</p>
-                  </div>
-                </div>
+                <Notice tone="warn" icon={MessageSquare} title="Note du client">
+                  <p className="whitespace-pre-wrap leading-relaxed">{selectedOrder.customer_note}</p>
+                </Notice>
               )}
 
-              <Separator />
-
               {/* ── Articles commandés ── */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 text-primary" />
-                  <h3 className="font-semibold text-sm">
-                    Articles commandés
-                    {orderItems.length > 0 && (
-                      <span className="ml-1.5 text-muted-foreground font-normal">({orderItems.length})</span>
-                    )}
-                  </h3>
-                </div>
+              <section className="space-y-2">
+                <SectionLabel>
+                  Articles commandés{orderItems.length > 0 && ` · ${orderItems.length}`}
+                </SectionLabel>
 
                 {loadingItems ? (
                   <div className="space-y-2">
                     {[1, 2].map((i) => (
-                      <div key={i} className="h-20 bg-muted animate-pulse rounded-lg" />
+                      <div key={i} className="h-16 animate-pulse rounded-sm bg-placeholder" />
                     ))}
                   </div>
                 ) : orderItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic">Aucun article trouvé.</p>
+                  <p className="text-md text-muted">Aucun article trouvé.</p>
                 ) : (
-                  <div className="space-y-3">
+                  <ul className="border-t border-hairline">
                     {orderItems.map((item) => (
-                      <div key={item.id} className="rounded-xl border overflow-hidden">
-                        {/* En-tête article */}
-                        <div className="flex items-center gap-3 p-3 bg-muted/20">
-                          {item.product?.thumbnail ? (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewImage(item.product!.thumbnail)}
-                              className="relative h-14 w-14 shrink-0 rounded-lg overflow-hidden border hover:ring-2 hover:ring-primary transition-all cursor-zoom-in"
-                            >
-                              <Image
-                                src={item.product.thumbnail}
-                                alt={getLabel(item.product.name, 'Produit')}
-                                fill
-                                className="object-cover"
-                                sizes="56px"
-                              />
-                            </button>
-                          ) : (
-                            <div className="h-14 w-14 shrink-0 rounded-lg bg-muted flex items-center justify-center">
-                              <Package className="h-6 w-6 text-muted-foreground" />
-                            </div>
+                      <li key={item.id} className="flex items-center gap-4 border-b border-hairline py-3">
+                        {item.product?.thumbnail ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImage(item.product!.thumbnail)}
+                            aria-label={`Agrandir l'image de ${getLabel(item.product.name, 'ce produit')}`}
+                            className="relative h-14 w-14 shrink-0 cursor-zoom-in overflow-hidden rounded-sm border border-hairline transition-colors hover:border-ink"
+                          >
+                            <Image
+                              src={item.product.thumbnail}
+                              alt=""
+                              fill
+                              className="object-cover"
+                              sizes="56px"
+                            />
+                          </button>
+                        ) : (
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-sm bg-placeholder">
+                            <Package className="h-5 w-5 text-placeholder-ink" strokeWidth={1.75} aria-hidden />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-md font-medium">
+                            {getLabel(item.product?.name, 'Produit supprimé')}
+                          </p>
+                          {item.product?.sku && (
+                            <p className="font-mono text-sm text-muted">{item.product.sku}</p>
                           )}
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">
-                              {getLabel(item.product?.name, 'Produit supprimé')}
-                            </p>
-                            {item.product?.sku && (
-                              <p className="text-xs font-mono text-muted-foreground">{item.product.sku}</p>
-                            )}
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-sm font-semibold">{formatCurrency(item.total_price)}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {item.quantity} × {formatCurrency(item.unit_price)}
-                            </p>
-                          </div>
                         </div>
-
-                      </div>
+                        <div className="shrink-0 text-right">
+                          <Price>{formatCurrency(item.total_price)}</Price>
+                          <p className="text-sm text-muted">
+                            {item.quantity} × {formatCurrency(item.unit_price)}
+                          </p>
+                        </div>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 )}
-              </div>
-
-              <Separator />
+              </section>
 
               {/* ── Section Assignation ── */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Scissors className="h-4 w-4 text-primary" />
-                  <h3 className="font-semibold text-sm">Assignation tailleur</h3>
-                </div>
+              <section className="space-y-3">
+                <SectionLabel>Tailleur</SectionLabel>
 
                 {/* Assignment actif */}
                 {loadingAssignments ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                  <p className="flex items-center gap-2 text-md text-muted">
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                     Chargement…
-                  </div>
+                  </p>
                 ) : currentAssignment ? (
-                  <div className="rounded-lg border p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <Scissors className="h-4 w-4 text-primary" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{currentAssignment.tailor_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Assigné le {formatDateTime(currentAssignment.assigned_at)}
-                          </p>
-                        </div>
+                  <div className="space-y-2 border-y border-hairline py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-base font-medium">{currentAssignment.tailor_name}</p>
+                        <p className="text-sm text-muted">
+                          Assigné le {formatDateTime(currentAssignment.assigned_at)}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
                         {(() => {
                           const s = ASSIGNMENT_STATUS_BADGE[currentAssignment.status] ?? { label: currentAssignment.status, variant: 'outline' as const, icon: Clock }
                           const Icon = s.icon
                           return (
-                            <Badge variant={s.variant} className="flex items-center gap-1">
-                              <Icon className="h-3 w-3" />
+                            <Badge variant={s.variant}>
+                              <Icon strokeWidth={1.75} aria-hidden />
                               {s.label}
                             </Badge>
                           )
@@ -659,58 +616,47 @@ export default function OrdersPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-destructive hover:text-destructive h-7 px-2 text-xs"
+                            className="text-danger-ink"
                             onClick={() => cancelAssignment(currentAssignment.id)}
                           >
-                            Annuler
+                            Retirer
                           </Button>
                         )}
                       </div>
                     </div>
                     {currentAssignment.notes && (
-                      <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
-                        {currentAssignment.notes}
-                      </p>
+                      <p className="text-sm text-muted">{currentAssignment.notes}</p>
                     )}
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {assignments[0]?.status === 'rejected' && (
-                      <div className="flex items-start gap-2.5 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3">
-                        <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                        <div>
-                          <p className="font-semibold text-xs uppercase tracking-wide">Assignation refusée</p>
-                          <p className="text-xs text-destructive/95 mt-0.5">
-                            Le tailleur <strong>{assignments[0].tailor_name}</strong> a refusé cette commande.
-                          </p>
-                        </div>
-                      </div>
+                      <Notice tone="danger" title="Assignation refusée">
+                        <strong className="font-semibold">{assignments[0].tailor_name}</strong> a refusé cette commande.
+                      </Notice>
                     )}
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground rounded-lg border border-dashed p-3">
-                      <AlertCircle className="h-4 w-4" />
-                      Aucun tailleur assigné à cette commande
-                    </div>
+                    <p className="text-md text-muted">Aucun tailleur assigné à cette commande.</p>
                   </div>
                 )}
 
                 {/* Formulaire d'assignation */}
-                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <div className="space-y-4 rounded-sm border border-hairline bg-surface p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p id="tailor-pick-label" className="text-md font-medium">
                       {activeAssignment ? 'Réassigner à un autre tailleur' : 'Choisir un tailleur'}
                     </p>
-                    <button type="button" onClick={fetchTailors} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-                      <RefreshCw className="h-3 w-3" />
+                    <Button type="button" variant="ghost" size="sm" onClick={fetchTailors} className="text-muted">
+                      <RefreshCw />
                       Actualiser
-                    </button>
+                    </Button>
                   </div>
 
                   {tailors.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">
-                      Aucun tailleur enregistré. Ajoutez des utilisateurs avec le rôle &quot;tailleur&quot; d&apos;abord.
+                    <p className="text-sm text-muted">
+                      Aucun tailleur enregistré. Attribuez d&apos;abord le rôle « tailleur » à un utilisateur.
                     </p>
                   ) : (
-                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                    <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2" role="group" aria-labelledby="tailor-pick-label">
                       {tailors.map((t) => {
                         const initials = t.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
                         const selected = selectedTailor === t.id
@@ -719,18 +665,25 @@ export default function OrdersPage() {
                             key={t.id}
                             type="button"
                             onClick={() => setSelectedTailor(selected ? '' : t.id)}
-                            className={`flex items-center gap-2.5 rounded-lg border p-2.5 text-left transition-all ${
+                            aria-pressed={selected}
+                            className={cn(
+                              'flex min-h-12 items-center gap-3 rounded-sm border px-3 text-left transition-colors',
                               selected
-                                ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                                : 'border-border bg-background hover:bg-muted/50'
-                            }`}
+                                ? 'border-ink bg-bg'
+                                : 'border-hairline bg-bg hover:border-muted'
+                            )}
                           >
-                            <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                              selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                            }`}>
+                            <span
+                              className={cn(
+                                'flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-xs font-semibold',
+                                selected ? 'bg-primary-fill text-primary-ink' : 'border border-hairline bg-placeholder text-ink'
+                              )}
+                              aria-hidden
+                            >
                               {initials}
-                            </div>
-                            <span className="text-xs font-medium truncate">{t.name}</span>
+                            </span>
+                            <span className="truncate text-md font-medium">{t.name}</span>
+                            {selected && <CheckCircle className="ml-auto h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden />}
                           </button>
                         )
                       })}
@@ -738,31 +691,24 @@ export default function OrdersPage() {
                   )}
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Note (optionnel)</Label>
+                    <Label htmlFor="assignment-notes">Instructions pour le tailleur <span className="font-normal text-muted">(facultatif)</span></Label>
                     <Textarea
-                      placeholder="Instructions spécifiques pour le tailleur…"
+                      id="assignment-notes"
                       value={assignmentNotes}
                       onChange={(e) => setAssignmentNotes(e.target.value)}
                       rows={2}
-                      className="text-sm resize-none bg-background"
+                      className="resize-none bg-bg"
                     />
                   </div>
 
-                  {assignWarning && (
-                    <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-500 px-3 py-2 text-xs">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      {assignWarning}
-                    </div>
-                  )}
+                  {assignWarning && <Notice tone="warn">{assignWarning}</Notice>}
 
                   <Button
-                    size="sm"
                     className="w-full"
                     disabled={!selectedTailor || assigning}
                     onClick={assignTailor}
                   >
-                    {assigning && <Loader2 className="h-4 w-4 animate-spin" />}
-                    <Scissors className="h-4 w-4" />
+                    {assigning ? <Loader2 className="animate-spin" /> : <Scissors />}
                     {activeAssignment ? 'Réassigner' : 'Assigner'}
                   </Button>
                 </div>
@@ -770,107 +716,102 @@ export default function OrdersPage() {
                 {/* Historique des assignments */}
                 {historyAssignments.length > 0 && (
                   <details className="group">
-                    <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground select-none">
-                      Voir l&apos;historique ({historyAssignments.length})
+                    <summary className="flex min-h-11 cursor-pointer select-none items-center text-md font-medium text-accent">
+                      Historique · {historyAssignments.length}
                     </summary>
-                    <div className="mt-2 space-y-1.5">
-                      {historyAssignments
-                        .map((a) => {
-                          const s = ASSIGNMENT_STATUS_BADGE[a.status] ?? { label: a.status, variant: 'outline' as const, icon: Clock }
-                          const Icon = s.icon
-                          return (
-                            <div key={a.id} className="flex items-center justify-between text-xs py-1.5 px-2 rounded bg-muted/30">
-                              <span className="text-muted-foreground">{a.tailor_name}</span>
-                              <Badge variant={s.variant} className="flex items-center gap-1 text-xs">
-                                <Icon className="h-3 w-3" />
-                                {s.label}
-                              </Badge>
-                            </div>
-                          )
-                        })}
-                    </div>
+                    <ul className="border-t border-hairline">
+                      {historyAssignments.map((a) => {
+                        const s = ASSIGNMENT_STATUS_BADGE[a.status] ?? { label: a.status, variant: 'outline' as const, icon: Clock }
+                        const Icon = s.icon
+                        return (
+                          <li key={a.id} className="flex items-center justify-between border-b border-hairline py-2.5">
+                            <span className="text-md">{a.tailor_name}</span>
+                            <Badge variant={s.variant}>
+                              <Icon strokeWidth={1.75} aria-hidden />
+                              {s.label}
+                            </Badge>
+                          </li>
+                        )
+                      })}
+                    </ul>
                   </details>
                 )}
-              </div>
+              </section>
 
-              <Separator />
-
-              {/* Montants */}
-              <div className="rounded-lg border p-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Sous-total</span>
-                  <span>{formatCurrency((selectedOrder.total_amount ?? 0) - (selectedOrder.tax_amount ?? 0))}</span>
-                </div>
-                {(selectedOrder.tax_amount ?? 0) > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {selectedOrder.tax_label ?? 'Taxes'} ({((selectedOrder.tax_rate ?? 0) * 100).toFixed(0)}%)
-                    </span>
-                    <span>{formatCurrency(selectedOrder.tax_amount ?? 0)}</span>
+              {/* ── Montants ── */}
+              <section className="space-y-1">
+                <SectionLabel>Montants</SectionLabel>
+                <dl>
+                  <SpecRow
+                    label="Sous-total"
+                    value={formatCurrency((selectedOrder.total_amount ?? 0) - (selectedOrder.tax_amount ?? 0))}
+                    valueClassName="serif-sm text-base tabular-nums"
+                  />
+                  {(selectedOrder.tax_amount ?? 0) > 0 && (
+                    <SpecRow
+                      label={`${selectedOrder.tax_label ?? 'Taxes'} (${((selectedOrder.tax_rate ?? 0) * 100).toFixed(0)} %)`}
+                      value={formatCurrency(selectedOrder.tax_amount ?? 0)}
+                      valueClassName="serif-sm text-base tabular-nums"
+                    />
+                  )}
+                  <div className="flex items-baseline justify-between gap-4 py-3">
+                    <dt className="text-base font-medium">Total</dt>
+                    <dd><Price size="md">{formatCurrency(selectedOrder.total_amount)}</Price></dd>
                   </div>
-                )}
-                <div className="flex justify-between font-semibold border-t pt-2">
-                  <span>Total</span>
-                  <span>{formatCurrency(selectedOrder.total_amount)}</span>
-                </div>
-              </div>
+                </dl>
+              </section>
 
-              {/* Adresse livraison */}
+              {/* ── Adresse livraison ── */}
               {selectedOrder.shipping_address && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Adresse de livraison</p>
-                  <div className="rounded-lg border p-3 text-sm space-y-0.5">
-                    <p className="font-medium">{selectedOrder.shipping_address.full_name}</p>
-                    <p className="text-muted-foreground">{selectedOrder.shipping_address.phone}</p>
-                    <p className="text-muted-foreground">{selectedOrder.shipping_address.address}</p>
-                    <p className="text-muted-foreground">
+                <section className="space-y-2">
+                  <SectionLabel>Adresse de livraison</SectionLabel>
+                  <address className="space-y-0.5 text-md not-italic">
+                    {selectedOrder.shipping_address.full_name && <p className="font-medium">{selectedOrder.shipping_address.full_name}</p>}
+                    {selectedOrder.shipping_address.phone && <p className="text-muted">{selectedOrder.shipping_address.phone}</p>}
+                    {selectedOrder.shipping_address.address && <p className="text-muted">{selectedOrder.shipping_address.address}</p>}
+                    <p className="text-muted">
                       {selectedOrder.shipping_address.quartier && `${selectedOrder.shipping_address.quartier}, `}
                       {selectedOrder.shipping_address.city}
                     </p>
-                    <p className="text-muted-foreground">{selectedOrder.shipping_address.country}</p>
-                  </div>
-                </div>
+                    {selectedOrder.shipping_address.country && <p className="text-muted">{selectedOrder.shipping_address.country}</p>}
+                  </address>
+                </section>
               )}
 
-              {/* Méta */}
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Créée le</p>
-                  <p>{formatDateTime(selectedOrder.created_at)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Payée le</p>
-                  <p>{formatDateTime(selectedOrder.paid_at)}</p>
-                </div>
-                {selectedOrder.stripe_payment_intent_id && (
-                  <div className="col-span-2">
-                    <p className="text-xs text-muted-foreground">Stripe PI</p>
-                    <p className="font-mono text-xs break-all">{selectedOrder.stripe_payment_intent_id}</p>
-                  </div>
-                )}
-              </div>
+              {/* ── Méta ── */}
+              <dl className="border-t border-hairline">
+                <SpecRow label="Créée le" value={formatDateTime(selectedOrder.created_at)} />
+                <SpecRow label="Payée le" value={formatDateTime(selectedOrder.paid_at)} />
+                <SpecRow
+                  label="Stripe PI"
+                  value={selectedOrder.stripe_payment_intent_id}
+                  valueClassName="break-all font-mono text-sm"
+                />
+              </dl>
             </div>
           )}
-          {/* ── Image preview (inside dialog, above everything) ── */}
+
+          {/* ── Aperçu image (dans la boîte de dialogue, au-dessus du reste) ── */}
           {previewImage && (
             <div
-              className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 backdrop-blur-sm rounded-lg"
+              className="absolute inset-0 z-10 flex items-center justify-center bg-scrim"
               onClick={() => setPreviewImage(null)}
             >
-              <div className="relative max-w-sm w-full mx-6" onClick={(e) => e.stopPropagation()}>
+              <div className="relative mx-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setPreviewImage(null)}
-                  className="absolute -top-3 -right-3 z-10 h-7 w-7 rounded-full bg-white text-black flex items-center justify-center shadow-lg text-sm font-bold hover:bg-gray-100"
+                  aria-label="Fermer l'aperçu"
+                  className="absolute -top-12 right-0 z-10 flex size-11 items-center justify-center rounded-sm border border-hairline bg-surface text-ink hover:border-ink"
                 >
-                  ✕
+                  <X className="h-4 w-4" strokeWidth={1.75} aria-hidden />
                 </button>
-                <div className="relative w-full rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: '1' }}>
+                <div className="relative w-full overflow-hidden rounded-sm border border-hairline bg-surface" style={{ aspectRatio: '1' }}>
                   <Image
                     src={previewImage}
-                    alt="Aperçu produit"
+                    alt="Aperçu du produit"
                     fill
-                    className="object-contain bg-white"
+                    className="object-contain"
                     sizes="480px"
                   />
                 </div>

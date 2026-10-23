@@ -44,10 +44,10 @@ export function OptionImagesEditor({
   return (
     <div className="space-y-2">
       {value.length === 0 && (
-        <p className="text-xs text-muted-foreground italic">Aucune option ajoutée</p>
+        <p className="text-xs text-muted italic">Aucune option ajoutée</p>
       )}
       {value.map((opt, i) => (
-        <div key={i} className="flex items-center gap-2 rounded-lg border bg-muted/20 p-2">
+        <div key={i} className="flex items-center gap-2 rounded-sm border bg-surface p-2">
           <ImageUpload
             value={opt.image_url || null}
             onChange={(url) => updateImage(i, url)}
@@ -66,7 +66,7 @@ export function OptionImagesEditor({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+            className="h-8 w-8 shrink-0 text-danger-ink hover:text-danger-ink"
             onClick={() => remove(i)}
           >
             <Trash2 className="h-4 w-4" />

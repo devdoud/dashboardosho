@@ -1,31 +1,23 @@
 import { redirect } from 'next/navigation'
 import { adminClient, requireAdmin, listAllUsers } from '@/lib/supabase/admin'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader, SectionLabel, StatRow, Price } from '@/components/ui/atelier'
 import { RevenueChart } from '@/components/dashboard/revenue-chart'
 import { OrdersStatusChart } from '@/components/dashboard/orders-status-chart'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
-import {
-  ShoppingBag,
-  TrendingUp,
-  Users,
-  CreditCard,
-  ArrowUpRight,
-  ArrowDownRight,
-  Clock,
-} from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 
 export const metadata = { title: 'Dashboard' }
 
 const ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const
 
-const STATUS_COLORS: Record<string, string> = {
-  pending:    '#f59e0b',
-  processing: '#3b82f6',
-  shipped:    '#8b5cf6',
-  delivered:  '#10b981',
-  cancelled:  '#ef4444',
+const ORDER_STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info' }> = {
+  pending: { label: 'En attente', variant: 'warning' },
+  processing: { label: 'En cours', variant: 'info' },
+  shipped: { label: 'Expédié', variant: 'secondary' },
+  delivered: { label: 'Livré', variant: 'success' },
+  cancelled: { label: 'Annulé', variant: 'destructive' },
 }
 
 /**
@@ -84,13 +76,11 @@ async function getStats() {
   const staffCount = (roleRows ?? []).filter((r) => r.role === 'admin' || r.role === 'tailor').length
   const totalCustomers = Math.max(authUsers.length - staffCount, 0)
 
-  const pieData = statusCountEntries
-    .filter(([, value]) => value > 0)
-    .map(([name, value]) => ({
-      name: name.charAt(0).toUpperCase() + name.slice(1),
-      value,
-      color: STATUS_COLORS[name] ?? '#6b7280',
-    }))
+  // Tous les statuts, y compris à zéro : une barre absente ne se lit pas.
+  const statusData = statusCountEntries.map(([name, value]) => ({
+    label: ORDER_STATUS_BADGE[name]?.label ?? name,
+    value,
+  }))
 
   // Revenus des 6 derniers mois — regroupés sur (année, mois) et non sur le
   // libellé court, qui se répète d'une année sur l'autre.
@@ -127,19 +117,11 @@ async function getStats() {
     monthRevenue,
     revenuePct,
     totalUsers:    totalCustomers,
-    pieData,
+    statusData,
     revenueChart:  months.map(({ month, revenue }) => ({ month, revenue })),
     recentOrders:  recentOrders ?? [],
     totalPayments: paymentStats?.reduce((s, p) => s + (p.amount ?? 0), 0) ?? 0,
   }
-}
-
-const ORDER_STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info' }> = {
-  pending: { label: 'En attente', variant: 'warning' },
-  processing: { label: 'En cours', variant: 'info' },
-  shipped: { label: 'Expédié', variant: 'secondary' },
-  delivered: { label: 'Livré', variant: 'success' },
-  cancelled: { label: 'Annulé', variant: 'destructive' },
 }
 
 export default async function DashboardPage() {
@@ -148,148 +130,73 @@ export default async function DashboardPage() {
   const stats = await getStats()
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground text-sm">Vue d&apos;ensemble de votre boutique</p>
+    <div className="space-y-10">
+      <PageHeader title="Dashboard" description="Vue d'ensemble de l'atelier" />
+
+      <StatRow
+        items={[
+          { label: 'Commandes ce mois', value: stats.monthOrders, pct: stats.ordersPct, sub: `${stats.totalOrders} au total` },
+          { label: 'Revenus ce mois', value: formatCurrency(stats.monthRevenue), pct: stats.revenuePct, sub: 'Commandes payées' },
+          { label: 'Clients', value: stats.totalUsers, sub: 'Comptes enregistrés' },
+          { label: 'Paiements du mois', value: formatCurrency(stats.totalPayments), sub: 'Via Stripe' },
+        ]}
+      />
+
+      <div className="grid gap-10 lg:grid-cols-3">
+        <section className="lg:col-span-2" aria-labelledby="revenue-title">
+          <div className="mb-4 flex items-baseline justify-between gap-4">
+            <h2 id="revenue-title" className="serif-md text-xl font-semibold">Revenus mensuels</h2>
+            <span className="text-sm text-muted">6 derniers mois</span>
+          </div>
+          <RevenueChart data={stats.revenueChart} />
+        </section>
+
+        <section aria-labelledby="status-title">
+          <div className="mb-4 flex items-baseline justify-between gap-4">
+            <h2 id="status-title" className="serif-md text-xl font-semibold">Statut des commandes</h2>
+            <span className="text-sm text-muted">Toutes</span>
+          </div>
+          <OrdersStatusChart data={stats.statusData} />
+        </section>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          title="Commandes ce mois"
-          value={stats.monthOrders.toString()}
-          sub={`${stats.totalOrders} au total`}
-          pct={stats.ordersPct}
-          icon={ShoppingBag}
-        />
-        <KpiCard
-          title="Revenus ce mois"
-          value={formatCurrency(stats.monthRevenue)}
-          sub="Commandes payées"
-          pct={stats.revenuePct}
-          icon={TrendingUp}
-        />
-        <KpiCard
-          title="Clients"
-          value={stats.totalUsers.toString()}
-          sub="Utilisateurs enregistrés"
-          icon={Users}
-        />
-        <KpiCard
-          title="Paiements (mois)"
-          value={formatCurrency(stats.totalPayments)}
-          sub="Via Stripe"
-          icon={CreditCard}
-        />
-      </div>
-
-      {/* Charts row */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Revenus mensuels</CardTitle>
-            <CardDescription>6 derniers mois</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RevenueChart data={stats.revenueChart} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Statut des commandes</CardTitle>
-            <CardDescription>Répartition globale</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <OrdersStatusChart data={stats.pieData} />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Orders */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+      <section aria-labelledby="recent-title">
+        <div className="mb-3 flex items-end justify-between gap-4">
           <div>
-            <CardTitle>Commandes récentes</CardTitle>
-            <CardDescription>Les 5 dernières commandes</CardDescription>
+            <SectionLabel as="h2" id="recent-title">Commandes récentes</SectionLabel>
           </div>
-          <Link href="/orders" className="text-sm text-primary hover:underline">
-            Voir tout →
+          <Link
+            href="/orders"
+            className="inline-flex min-h-11 items-center gap-1.5 text-md font-medium text-accent underline-offset-4 hover:underline"
+          >
+            Toutes les commandes <ArrowRight className="h-4 w-4" strokeWidth={1.75} aria-hidden />
           </Link>
-        </CardHeader>
-        <CardContent>
-          {stats.recentOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Clock className="h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">Aucune commande pour l&apos;instant</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {stats.recentOrders.map((order) => {
-                const s = ORDER_STATUS_BADGE[order.status] ?? { label: order.status, variant: 'outline' as const }
-                return (
-                  <div key={order.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <ShoppingBag className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium font-mono">#{order.id.slice(0, 8)}</p>
-                        <p className="text-xs text-muted-foreground">{formatDateTime(order.created_at)}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant={s.variant}>{s.label}</Badge>
-                      <span className="text-sm font-semibold">{formatCurrency(order.total_amount)}</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
+        </div>
 
-function KpiCard({
-  title,
-  value,
-  sub,
-  pct,
-  icon: Icon,
-}: {
-  title: string
-  value: string
-  sub: string
-  pct?: number
-  icon: React.ElementType
-}) {
-  const isPositive = (pct ?? 0) >= 0
-  return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-medium text-muted-foreground">{title}</span>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <Icon className="h-4 w-4 text-primary" />
-          </div>
-        </div>
-        <div className="space-y-1">
-          <p className="text-2xl font-bold">{value}</p>
-          <div className="flex items-center gap-1.5">
-            {pct !== undefined && (
-              <span className={`flex items-center text-xs font-medium ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-                {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                {Math.abs(pct).toFixed(1)}%
-              </span>
-            )}
-            <span className="text-xs text-muted-foreground">{sub}</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        {stats.recentOrders.length === 0 ? (
+          <p className="border-y border-hairline py-10 text-center text-md text-muted">
+            Aucune commande pour l&apos;instant.
+          </p>
+        ) : (
+          <ul className="border-t border-hairline">
+            {stats.recentOrders.map((order) => {
+              const s = ORDER_STATUS_BADGE[order.status] ?? { label: order.status, variant: 'outline' as const }
+              return (
+                <li key={order.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-hairline py-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-md">#{order.id.slice(0, 8)}</p>
+                    <p className="text-sm text-muted">{formatDateTime(order.created_at)}</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <Badge variant={s.variant}>{s.label}</Badge>
+                    <Price className="min-w-[110px] text-right">{formatCurrency(order.total_amount)}</Price>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+    </div>
   )
 }

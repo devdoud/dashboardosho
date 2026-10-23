@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { orIlike } from '@/lib/supabase/query'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,18 +10,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { formatCurrency, formatDate, truncate, getLabel } from '@/lib/utils'
+import { Notice, PageHeader, Price, SectionLabel, SpecRow } from '@/components/ui/atelier'
+import { cn, formatCurrency, formatDate, truncate, getLabel } from '@/lib/utils'
 import type { Product, ProductInsert, Category } from '@/types/database'
-import { Search, Plus, Edit, Trash2, RefreshCw, Star, ChevronLeft, ChevronRight, Eye, Images, MapPin, Clock } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, RefreshCw, Star, ChevronLeft, ChevronRight, Eye, Images } from 'lucide-react'
 import Image from 'next/image'
 import { ImageUpload, MultiImageUpload } from '@/components/ui/image-upload'
 import { BilingualInput, parseI18n, serializeI18n, parseI18nArray, serializeI18nArray, type I18nValue } from '@/components/ui/bilingual-input'
 import { BilingualTagInput } from '@/components/ui/bilingual-tag-input'
-import { Separator } from '@/components/ui/separator'
 
 const PAGE_SIZE = 20
 
 const DIFFICULTY_LABELS = { easy: 'Facile', medium: 'Intermédiaire', hard: 'Difficile' }
+
+const DIFFICULTY_VARIANT = { easy: 'success', medium: 'warning', hard: 'destructive' } as const
 
 export default function ProductsPage() {
   const supabase = createClient()
@@ -166,36 +167,39 @@ export default function ProductsPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Produits</h1>
-          <p className="text-muted-foreground text-sm">{total} produits au total</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={fetchProducts} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" />
-            Nouveau produit
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Produits"
+        description={`${total} produits au total`}
+        actions={
+          <>
+            <Button variant="outline" size="icon" onClick={fetchProducts} disabled={loading} aria-label="Actualiser la liste">
+              <RefreshCw className={loading ? 'animate-spin' : ''} />
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus />
+              Nouveau produit
+            </Button>
+          </>
+        }
+      />
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      {/* Filtres */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative max-w-xs flex-1">
+          <label htmlFor="products-search" className="sr-only">Rechercher un produit</label>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" strokeWidth={1.75} aria-hidden />
           <Input
-            placeholder="Rechercher..."
+            id="products-search"
+            type="search"
+            placeholder="Rechercher"
             className="pl-9"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0) }}
           />
         </div>
         <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(0) }}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="sm:w-52" aria-label="Filtrer par catégorie">
             <SelectValue placeholder="Toutes catégories" />
           </SelectTrigger>
           <SelectContent>
@@ -207,110 +211,113 @@ export default function ProductsPage() {
         </Select>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12" />
-                <TableHead>Produit</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Catégorie</TableHead>
-                <TableHead>Difficulté</TableHead>
-                <TableHead className="text-right">Prix</TableHead>
-                <TableHead>Vedette</TableHead>
-                <TableHead>Créé le</TableHead>
-                <TableHead />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-16"><span className="sr-only">Image</span></TableHead>
+            <TableHead>Produit</TableHead>
+            <TableHead>SKU</TableHead>
+            <TableHead>Catégorie</TableHead>
+            <TableHead>Difficulté</TableHead>
+            <TableHead className="text-right">Prix</TableHead>
+            <TableHead className="text-center">Vedette</TableHead>
+            <TableHead>Créé le</TableHead>
+            <TableHead><span className="sr-only">Actions</span></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 9 }).map((_, j) => (
+                  <TableCell key={j} className="py-4"><div className="h-4 animate-pulse rounded-sm bg-placeholder" /></TableCell>
+                ))}
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 9 }).map((_, j) => (
-                      <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : products.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
-                    Aucun produit trouvé
+            ))
+          ) : products.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={9} className="py-12 text-center text-muted">
+                Aucun produit trouvé.
+              </TableCell>
+            </TableRow>
+          ) : (
+            products.map((product) => {
+              const name = getLabel(product.name)
+              return (
+                <TableRow key={product.id}>
+                  <TableCell>
+                    {product.thumbnail ? (
+                      <div className="h-12 w-10 overflow-hidden rounded-sm bg-placeholder">
+                        <Image
+                          src={product.thumbnail}
+                          alt=""
+                          width={40}
+                          height={48}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-12 w-10 rounded-sm bg-placeholder" />
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium">{truncate(name, 40)}</TableCell>
+                  <TableCell className="font-mono text-sm">{product.sku}</TableCell>
+                  <TableCell>
+                    {product.category && <Badge variant="outline">{getLabel(product.category.name)}</Badge>}
+                  </TableCell>
+                  <TableCell>
+                    {product.difficulty && (
+                      <Badge variant={DIFFICULTY_VARIANT[product.difficulty]}>
+                        {DIFFICULTY_LABELS[product.difficulty]}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right"><Price>{formatCurrency(product.price)}</Price></TableCell>
+                  <TableCell className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => toggleFeatured(product)}
+                      aria-pressed={!!product.is_featured}
+                      aria-label={`Produit vedette : ${name}`}
+                      className="inline-flex size-11 items-center justify-center rounded-sm transition-colors hover:bg-surface"
+                    >
+                      <Star
+                        className={cn('h-4 w-4', product.is_featured ? 'fill-ink text-ink' : 'text-muted')}
+                        strokeWidth={1.75}
+                        aria-hidden
+                      />
+                    </button>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted">{formatDate(product.created_at)}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => setViewProduct(product)} aria-label={`Voir ${name}`}>
+                        <Eye />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(product)} aria-label={`Modifier ${name}`}>
+                        <Edit />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-danger-ink" onClick={() => setDeleteId(product.id)} aria-label={`Supprimer ${name}`}>
+                        <Trash2 />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ) : (
-                products.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      {product.thumbnail ? (
-                        <div className="h-10 w-10 rounded-md overflow-hidden bg-muted">
-                          <Image
-                            src={product.thumbnail}
-                            alt={getLabel(product.name, 'Produit')}
-                            width={40}
-                            height={40}
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="h-10 w-10 rounded-md bg-muted" />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-sm">{truncate(getLabel(product.name), 40)}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{product.sku}</TableCell>
-                    <TableCell>
-                      {product.category ? (
-                        <Badge variant="outline">{getLabel(product.category.name)}</Badge>
-                      ) : '—'}
-                    </TableCell>
-                    <TableCell>
-                      {product.difficulty ? (
-                        <Badge variant={product.difficulty === 'easy' ? 'success' : product.difficulty === 'medium' ? 'warning' : 'destructive'}>
-                          {DIFFICULTY_LABELS[product.difficulty]}
-                        </Badge>
-                      ) : '—'}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency(product.price)}</TableCell>
-                    <TableCell>
-                      <button onClick={() => toggleFeatured(product)}>
-                        <Star className={`h-4 w-4 ${product.is_featured ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'}`} />
-                      </button>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{formatDate(product.created_at)}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => setViewProduct(product)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(product)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteId(product.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              )
+            })
+          )}
+        </TableBody>
+      </Table>
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">Page {page + 1} / {totalPages}</p>
+          <p className="text-sm text-muted">Page {page + 1} sur {totalPages}</p>
           <div className="flex gap-2">
-            <Button variant="outline" size="icon" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-              <ChevronLeft className="h-4 w-4" />
+            <Button variant="outline" size="icon" disabled={page === 0} onClick={() => setPage((p) => p - 1)} aria-label="Page précédente">
+              <ChevronLeft />
             </Button>
-            <Button variant="outline" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
-              <ChevronRight className="h-4 w-4" />
+            <Button variant="outline" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} aria-label="Page suivante">
+              <ChevronRight />
             </Button>
           </div>
         </div>
@@ -318,32 +325,30 @@ export default function ProductsPage() {
 
       {/* ── Vue détail produit ── */}
       <Dialog open={!!viewProduct} onOpenChange={(open) => !open && setViewProduct(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto" aria-describedby={undefined}>
           {viewProduct && (
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  {truncate(getLabel(viewProduct.name), 50)}
-                  {viewProduct.is_featured && <Star className="h-4 w-4 fill-amber-400 text-amber-400" />}
-                </DialogTitle>
+                <DialogTitle>{truncate(getLabel(viewProduct.name), 50)}</DialogTitle>
+                {viewProduct.is_featured && <div><Badge variant="secondary">Produit vedette</Badge></div>}
               </DialogHeader>
 
-              <div className="space-y-5">
+              <div className="space-y-6">
                 {/* Miniature + galerie */}
                 <div className="flex gap-3">
                   {viewProduct.thumbnail ? (
-                    <div className="relative h-28 w-28 shrink-0 rounded-xl overflow-hidden border">
+                    <div className="relative h-36 w-28 shrink-0 overflow-hidden rounded-sm border border-hairline">
                       <Image src={viewProduct.thumbnail} alt={getLabel(viewProduct.name, 'Produit')} fill className="object-cover" sizes="112px" />
                     </div>
                   ) : (
-                    <div className="h-28 w-28 shrink-0 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
-                      <Images className="h-8 w-8" />
+                    <div className="flex h-36 w-28 shrink-0 items-center justify-center rounded-sm bg-placeholder">
+                      <Images className="h-7 w-7 text-placeholder-ink" strokeWidth={1.75} aria-hidden />
                     </div>
                   )}
                   {((viewProduct.images as string[]) ?? []).length > 0 && (
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex flex-wrap content-start gap-2">
                       {(viewProduct.images as string[]).map((url, i) => (
-                        <div key={i} className="relative h-16 w-16 rounded-lg overflow-hidden border">
+                        <div key={i} className="relative h-20 w-16 overflow-hidden rounded-sm border border-hairline">
                           <Image src={url} alt={`Image ${i + 1}`} fill className="object-cover" sizes="64px" />
                         </div>
                       ))}
@@ -351,60 +356,52 @@ export default function ProductsPage() {
                   )}
                 </div>
 
-                {/* Infos principales */}
-                <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                  <div><span className="text-muted-foreground">SKU</span> <span className="font-mono ml-2">{viewProduct.sku}</span></div>
-                  <div><span className="text-muted-foreground">Prix</span> <span className="font-semibold ml-2">{formatCurrency(viewProduct.price)}</span></div>
-                  {viewProduct.category && (
-                    <div><span className="text-muted-foreground">Catégorie</span> <Badge variant="outline" className="ml-2">{getLabel(viewProduct.category.name)}</Badge></div>
-                  )}
-                  {viewProduct.difficulty && (
-                    <div><span className="text-muted-foreground">Difficulté</span> <Badge className="ml-2" variant={viewProduct.difficulty === 'easy' ? 'success' : viewProduct.difficulty === 'medium' ? 'warning' : 'destructive'}>{DIFFICULTY_LABELS[viewProduct.difficulty]}</Badge></div>
-                  )}
-                  {viewProduct.estimated_days && (
-                    <div className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-muted-foreground">Délai</span><span className="ml-1">{viewProduct.estimated_days} jours</span></div>
-                  )}
-                  {viewProduct.traditional_origin && (
-                    <div className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-muted-foreground">Origine</span><span className="ml-1">{getLabel(viewProduct.traditional_origin)}</span></div>
-                  )}
-                </div>
+                {/* Spécifications : une ligne vide disparaît */}
+                <dl className="border-t border-hairline">
+                  <SpecRow label="Prix" value={formatCurrency(viewProduct.price)} valueClassName="serif-sm text-base tabular-nums" />
+                  <SpecRow label="SKU" value={viewProduct.sku} valueClassName="font-mono" />
+                  <SpecRow label="Catégorie" value={viewProduct.category ? getLabel(viewProduct.category.name) : null} />
+                  <SpecRow label="Difficulté" value={viewProduct.difficulty ? DIFFICULTY_LABELS[viewProduct.difficulty] : null} />
+                  <SpecRow label="Délai" value={viewProduct.estimated_days ? `${viewProduct.estimated_days} jours` : null} />
+                  <SpecRow label="Origine" value={viewProduct.traditional_origin ? getLabel(viewProduct.traditional_origin, '') : null} />
+                </dl>
 
                 {viewProduct.description && (
-                  <p className="text-sm text-muted-foreground rounded-lg bg-muted/30 p-3">{getLabel(viewProduct.description)}</p>
+                  <section className="space-y-2">
+                    <SectionLabel>Description</SectionLabel>
+                    <p className="text-md leading-relaxed">{getLabel(viewProduct.description)}</p>
+                  </section>
                 )}
 
-                {/* Tags */}
                 {((viewProduct.tags as I18nValue[]) ?? []).length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tags</p>
-                    <div className="flex flex-wrap gap-1.5">
+                  <section className="space-y-2">
+                    <SectionLabel>Tags</SectionLabel>
+                    <ul className="flex flex-wrap gap-1.5">
                       {(viewProduct.tags as I18nValue[]).map((t, i) => (
-                        <span key={i} className="px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium">{getLabel(t)}</span>
+                        <li key={i} className="rounded-sm border border-hairline bg-surface px-2.5 py-1 text-sm">{getLabel(t)}</li>
                       ))}
-                    </div>
-                  </div>
+                    </ul>
+                  </section>
                 )}
 
-                {/* Perfect for */}
                 {((viewProduct.perfect_for as I18nValue[]) ?? []).length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Perfect for</p>
-                    <div className="flex flex-wrap gap-1.5">
+                  <section className="space-y-2">
+                    <SectionLabel>Pour l&apos;occasion</SectionLabel>
+                    <ul className="flex flex-wrap gap-1.5">
                       {(viewProduct.perfect_for as I18nValue[]).map((t, i) => (
-                        <span key={i} className="px-2.5 py-1 rounded-md border border-border bg-muted/40 text-xs font-medium">{getLabel(t)}</span>
+                        <li key={i} className="rounded-sm border border-hairline bg-surface px-2.5 py-1 text-sm">{getLabel(t)}</li>
                       ))}
-                    </div>
-                  </div>
+                    </ul>
+                  </section>
                 )}
-
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <DialogFooter>
                 <Button variant="outline" onClick={() => setViewProduct(null)}>Fermer</Button>
                 <Button onClick={() => { setViewProduct(null); openEdit(viewProduct) }}>
-                  <Edit className="h-4 w-4" /> Modifier
+                  <Edit /> Modifier
                 </Button>
-              </div>
+              </DialogFooter>
             </>
           )}
         </DialogContent>
@@ -412,75 +409,64 @@ export default function ProductsPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>{editProduct ? 'Modifier le produit' : 'Nouveau produit'}</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5">
+          <div className="space-y-6">
 
             {/* ── Nom (bilingue) ── */}
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">
-                Nom <span className="text-destructive">*</span>
+              <Label htmlFor="product-name">
+                Nom <span className="text-danger-ink" aria-hidden>*</span>
               </Label>
-              <BilingualInput
-                value={titleI18n}
-                onChange={setTitleI18n}
-                placeholder={{ fr: 'Nom du produit en français', en: 'Product name in English' }}
-                required
-              />
+              <BilingualInput id="product-name" value={titleI18n} onChange={setTitleI18n} required />
             </div>
 
             {/* ── Description (bilingue) ── */}
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Description</Label>
-              <BilingualInput
-                value={descI18n}
-                onChange={setDescI18n}
-                placeholder={{ fr: 'Description en français…', en: 'Description in English…' }}
-                multiline
-                rows={3}
-              />
+              <Label htmlFor="product-desc">Description</Label>
+              <BilingualInput id="product-desc" value={descI18n} onChange={setDescI18n} multiline rows={3} />
             </div>
 
-            <Separator />
-
             {/* ── Infos scalaires ── */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 border-t border-hairline pt-6 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>SKU <span className="text-destructive">*</span></Label>
+                <Label htmlFor="product-sku">SKU <span className="text-danger-ink" aria-hidden>*</span></Label>
                 <Input
+                  id="product-sku"
+                  className="font-mono"
                   value={form.sku ?? ''}
                   onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
-                  placeholder="OSH-001"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Prix (FCFA) <span className="text-destructive">*</span></Label>
+                <Label htmlFor="product-price">Prix en FCFA <span className="text-danger-ink" aria-hidden>*</span></Label>
                 <Input
+                  id="product-price"
                   type="number"
+                  inputMode="numeric"
                   value={form.price ?? ''}
                   onChange={(e) => setForm((f) => ({ ...f, price: parseFloat(e.target.value) }))}
-                  placeholder="25000"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Catégorie</Label>
+                <Label id="product-category-label">Catégorie</Label>
                 <Select value={form.category_id ?? 'none'} onValueChange={(v) => setForm((f) => ({ ...f, category_id: v === 'none' ? undefined : v }))}>
-                  <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
+                  <SelectTrigger aria-labelledby="product-category-label"><SelectValue placeholder="Sélectionner" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">— Aucune —</SelectItem>
+                    <SelectItem value="none">Aucune</SelectItem>
                     {categories.map((c) => <SelectItem key={c.id} value={c.id}>{getLabel(c.name)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Difficulté</Label>
+                <Label id="product-difficulty-label">Difficulté</Label>
                 <Select value={form.difficulty ?? 'none'} onValueChange={(v) => setForm((f) => ({ ...f, difficulty: v === 'none' ? undefined : v as Product['difficulty'] }))}>
-                  <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
+                  <SelectTrigger aria-labelledby="product-difficulty-label"><SelectValue placeholder="Sélectionner" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">— Aucune —</SelectItem>
+                    <SelectItem value="none">Non précisée</SelectItem>
                     <SelectItem value="easy">Facile</SelectItem>
                     <SelectItem value="medium">Intermédiaire</SelectItem>
                     <SelectItem value="hard">Difficile</SelectItem>
@@ -488,36 +474,44 @@ export default function ProductsPage() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Délai estimé (jours)</Label>
+                <Label htmlFor="product-days">Délai estimé, en jours</Label>
                 <Input
+                  id="product-days"
                   type="number"
+                  inputMode="numeric"
                   value={form.estimated_days ?? ''}
                   onChange={(e) => setForm((f) => ({ ...f, estimated_days: parseInt(e.target.value) }))}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Origine traditionnelle</Label>
-                <BilingualInput
-                  value={originI18n}
-                  onChange={setOriginI18n}
-                  placeholder={{ fr: 'ex: Sénégal, Mali', en: 'e.g. Senegal, Mali' }}
+                <Label htmlFor="product-origin">Origine traditionnelle</Label>
+                <BilingualInput id="product-origin" value={originI18n} onChange={setOriginI18n} />
+              </div>
+              <label htmlFor="featured" className="flex min-h-11 cursor-pointer items-center gap-3 text-md">
+                <input
+                  type="checkbox"
+                  id="featured"
+                  className="h-5 w-5 accent-ink"
+                  checked={form.is_featured ?? false}
+                  onChange={(e) => setForm((f) => ({ ...f, is_featured: e.target.checked }))}
                 />
-              </div>
-              <div className="flex items-center gap-2 pt-5">
-                <input type="checkbox" id="featured" checked={form.is_featured ?? false} onChange={(e) => setForm((f) => ({ ...f, is_featured: e.target.checked }))} />
-                <Label htmlFor="featured">Produit vedette</Label>
-              </div>
-              <div className="flex items-center gap-2 pt-5">
-                <input type="checkbox" id="traditional" checked={form.is_traditional ?? false} onChange={(e) => setForm((f) => ({ ...f, is_traditional: e.target.checked }))} />
-                <Label htmlFor="traditional">Traditionnel</Label>
-              </div>
+                Produit vedette
+              </label>
+              <label htmlFor="traditional" className="flex min-h-11 cursor-pointer items-center gap-3 text-md">
+                <input
+                  type="checkbox"
+                  id="traditional"
+                  className="h-5 w-5 accent-ink"
+                  checked={form.is_traditional ?? false}
+                  onChange={(e) => setForm((f) => ({ ...f, is_traditional: e.target.checked }))}
+                />
+                Pièce traditionnelle
+              </label>
             </div>
 
-            <Separator />
-
             {/* ── Tags ── */}
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Tags</Label>
+            <div className="space-y-1.5 border-t border-hairline pt-6">
+              <Label>Tags</Label>
               <BilingualTagInput
                 value={(form.tags as I18nValue[]) ?? []}
                 onChange={(tags) => setForm((f) => ({ ...f, tags }))}
@@ -531,13 +525,12 @@ export default function ProductsPage() {
                   { fr: 'Limité', en: 'Limited' },
                   { fr: 'Tendance', en: 'Trending' },
                 ]}
-                placeholder={{ fr: 'Ajouter un tag…', en: 'Add a tag…' }}
               />
             </div>
 
             {/* ── Perfect for ── */}
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Perfect for</Label>
+              <Label>Pour l&apos;occasion</Label>
               <BilingualTagInput
                 value={(form.perfect_for as I18nValue[]) ?? []}
                 onChange={(perfect_for) => setForm((f) => ({ ...f, perfect_for }))}
@@ -552,18 +545,15 @@ export default function ProductsPage() {
                   { fr: 'Ramadan', en: 'Ramadan' },
                   { fr: 'Noël', en: 'Christmas' },
                 ]}
-                placeholder={{ fr: 'Ajouter une occasion…', en: 'Add an occasion…' }}
               />
             </div>
 
-            <Separator />
-
             {/* ── Images ── */}
-            <div className="space-y-4">
-              <p className="text-sm font-semibold">Images</p>
-              <div className="grid grid-cols-2 gap-4">
+            <section className="space-y-4 border-t border-hairline pt-6">
+              <SectionLabel>Images</SectionLabel>
+              <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Miniature principale</Label>
+                  <p className="text-sm font-medium">Miniature principale</p>
                   <ImageUpload
                     value={form.thumbnail}
                     onChange={(url) => setForm((f) => ({ ...f, thumbnail: url }))}
@@ -573,7 +563,7 @@ export default function ProductsPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Galerie (max 8)</Label>
+                  <p className="text-sm font-medium">Galerie, 8 images au plus</p>
                   <MultiImageUpload
                     value={(form.images as string[]) ?? []}
                     onChange={(urls) => setForm((f) => ({ ...f, images: urls }))}
@@ -581,20 +571,15 @@ export default function ProductsPage() {
                   />
                 </div>
               </div>
-            </div>
+            </section>
 
-            {saveError && (
-              <p className="text-sm text-destructive rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2">
-                {saveError}
-              </p>
-            )}
-
+            {saveError && <Notice tone="danger">{saveError}</Notice>}
           </div>
 
-          <DialogFooter className="mt-4">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Enregistrement...' : editProduct ? 'Modifier' : 'Créer'}
+              {saving ? 'Enregistrement…' : editProduct ? 'Enregistrer' : 'Créer'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -606,7 +591,7 @@ export default function ProductsPage() {
           <DialogHeader>
             <DialogTitle>Supprimer le produit ?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">Cette action est irréversible.</p>
+          <p className="text-md text-muted">Cette action est irréversible.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Annuler</Button>
             <Button variant="destructive" onClick={() => deleteId && handleDelete(deleteId)}>Supprimer</Button>
@@ -616,6 +601,3 @@ export default function ProductsPage() {
     </div>
   )
 }
-
-// ── Sous-composant : grille d'options avec images ──────────────────────────
-
