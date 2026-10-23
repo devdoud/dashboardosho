@@ -1,22 +1,33 @@
 import type { Metadata } from 'next'
-import { DM_Sans, Fraunces } from 'next/font/google'
+import localFont from 'next/font/local'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
+// Polices auto-hébergées (app/fonts, licence OFL, fichiers Fontsource, sous-ensemble
+// latin). `next/font/google` faisait échouer le build Turbopack sur Vercel
+// (« next/font/google queries have exactly one entry ») et dépendait du réseau.
+
 // Une seule serif, pour les titres et les prix — 400 et 600 uniquement.
-const fraunces = Fraunces({
-  subsets: ['latin'],
-  weight: ['400', '600'],
+const fraunces = localFont({
+  src: [
+    { path: './fonts/fraunces-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/fraunces-latin-600-normal.woff2', weight: '600', style: 'normal' },
+  ],
   variable: '--font-fraunces',
   display: 'swap',
+  fallback: ['Georgia', 'serif'],
 })
 
 // Tout le reste.
-const dmSans = DM_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const dmSans = localFont({
+  src: [
+    { path: './fonts/dm-sans-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/dm-sans-latin-500-normal.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/dm-sans-latin-600-normal.woff2', weight: '600', style: 'normal' },
+  ],
   variable: '--font-dm-sans',
   display: 'swap',
+  fallback: ['system-ui', 'sans-serif'],
 })
 
 export const metadata: Metadata = {
