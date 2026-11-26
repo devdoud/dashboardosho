@@ -1,373 +1,450 @@
-import Image from 'next/image'
-import Link from 'next/link'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { ArrowRight, Mail, MapPin } from 'lucide-react'
-import { Logo, LogoMark } from '@/components/brand/logo'
-import { formatUsdFromXof, getXofPerUsd } from '@/lib/currency'
-import { AtelierTour } from '@/components/landing/atelier-tour'
-import type { Database } from '@/types/database'
+import type { Metadata } from 'next'
+import { LogoMark } from '@/components/brand/logo'
+import { DownloadButton } from '@/components/landing/download-button'
+import { Phone } from '@/components/landing/phone'
+import { Photo, type PhotoName } from '@/components/landing/photo'
+import { SiteFooter, SiteHeader } from '@/components/landing/site-chrome'
+import { TapeDemo } from '@/components/landing/tape-demo'
+import { LandingShell } from '@/components/landing/shell'
+import { APP_STORE_URL, CONTACT_EMAIL, LOCATION, PLAY_STORE_URL } from '@/components/landing/site'
+import s from '@/components/landing/landing.module.css'
 
-// Le catalogue change peu : on régénère la page au plus toutes les heures.
-export const revalidate = 3600
-
-// Liens magasins : à remplacer par les fiches de l'app une fois publiées.
-const APP_STORE_URL = 'https://apps.apple.com'
-const PLAY_STORE_URL = 'https://play.google.com/store'
-
-// ─── Données ──────────────────────────────────────────────────────────────────
-
-interface Piece {
-  id: string
-  name: string
-  image: string
-  price: string | null
+export const metadata: Metadata = {
+  title: { absolute: 'Osho · Cut to your body, not a size' },
+  description:
+    'Bazin, Vlisco and wax, sewn to your measurements by West African tailors and delivered to your door. ' +
+    'Your height and weight are enough for 13 measurements. Based in Sioux City, Iowa.',
+  openGraph: {
+    type: 'website',
+    siteName: 'Osho',
+    locale: 'en_US',
+    title: 'Osho · Cut to your body, not a size',
+    description: 'Made-to-measure West African fashion, sewn to your measurements. Based in Sioux City, Iowa.',
+  },
+  twitter: { card: 'summary_large_image' },
 }
 
-/** Nom lisible, anglais d'abord (langue par défaut de la landing). */
-function labelEn(value: unknown): string {
-  if (!value) return ''
-  if (typeof value === 'string') {
-    if (value.startsWith('{')) {
-      try { return labelEn(JSON.parse(value)) } catch { /* texte brut */ }
-    }
-    return value
-  }
-  if (typeof value === 'object') {
-    const v = value as Record<string, unknown>
-    return String(v.en ?? v.fr ?? '')
-  }
-  return ''
-}
-
-/**
- * Pièces mises en avant, lues avec la clé anon (policy `products_public_read`).
- * Client sans cookies : la page reste statique et régénérée périodiquement.
- * En cas d'erreur ou d'absence de configuration, la page tient sans photos.
- */
-async function getFeaturedPieces(): Promise<Piece[]> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) return []
-
-  try {
-    const supabase = createSupabaseClient<Database>(url, key, { auth: { persistSession: false } })
-    const { data } = await supabase
-      .from('products')
-      .select('id, name, price, thumbnail, images, is_featured, created_at')
-      .not('thumbnail', 'is', null)
-      .order('is_featured', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(7)
-
-    const rate = getXofPerUsd()
-    return (data ?? [])
-      .map((p) => ({
-        id: p.id,
-        name: labelEn(p.name),
-        image: p.thumbnail ?? (p.images ?? [])[0] ?? '',
-        price: formatUsdFromXof(p.price, rate),
-      }))
-      .filter((p) => p.image && p.name)
-  } catch {
-    return []
-  }
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export default async function LandingPage() {
-  const pieces = await getFeaturedPieces()
-  const [hero, ...collection] = pieces
-
+export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-bg text-ink">
-      <SiteHeader hasCollection={collection.length > 0} />
+    <LandingShell>
+      <SiteHeader />
 
-      <main>
-        {/* ════ Héros : une pièce, un titre ════ */}
-        <section className="border-b border-hairline">
-          <div className={`mx-auto grid max-w-[1360px] gap-10 px-4 py-12 sm:px-8 md:py-20 ${hero ? 'lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-16' : ''}`}>
-            <div className="max-w-xl">
-              <p className="eyebrow">Made-to-measure · West Africa</p>
-              <h1 className="mt-5 serif-lg text-4xl font-semibold md:text-5xl">
-                Cut to your measurements. Sewn by hand in West&nbsp;Africa.
-              </h1>
-              <p className="mt-6 max-w-md text-lg text-muted">
-                Boubou, agbada and kaftan in bazin, Vlisco and wax — made by a tailor
-                for you alone. Save your measurements once; every order is cut from them.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <StoreBadge store="apple" />
-                <StoreBadge store="google" />
-              </div>
-              <p className="mt-4 text-sm text-muted">Priced at the atelier, charged in US dollars.</p>
-            </div>
-
-            {hero && (
-              <figure className="w-full">
-                <div className="relative aspect-[4/5] w-full overflow-hidden rounded-sm bg-placeholder">
-                  <Image
-                    src={hero.image}
-                    alt={hero.name}
-                    fill
-                    priority
-                    sizes="(min-width: 1024px) 640px, 100vw"
-                    className="object-cover"
-                  />
-                </div>
-                <figcaption className="mt-3 flex items-baseline justify-between gap-4 border-b border-hairline pb-3">
-                  <span className="text-base font-medium">{hero.name}</span>
-                  {hero.price && <PriceTag value={hero.price} />}
-                </figcaption>
-              </figure>
-            )}
-          </div>
-        </section>
-
-        {/* ════ La collection : les photos portent la page ════ */}
-        {collection.length > 0 && (
-          <section id="collection" className="border-b border-hairline">
-            <div className="mx-auto max-w-[1360px] px-4 py-16 sm:px-8 md:py-24">
-              <SectionHeading eyebrow="The collection" title="Pieces our tailors are cutting now" />
-              <ul className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 md:gap-x-8">
-                {collection.map((p) => (
-                  <li key={p.id}>
-                    <figure>
-                      <div className="relative aspect-[4/5] w-full overflow-hidden rounded-sm bg-placeholder">
-                        <Image
-                          src={p.image}
-                          alt={p.name}
-                          fill
-                          sizes="(min-width: 768px) 33vw, 50vw"
-                          className="object-cover"
-                        />
-                      </div>
-                      <figcaption className="mt-3 space-y-0.5">
-                        <p className="text-base font-medium leading-snug">{p.name}</p>
-                        {p.price && <PriceTag value={p.price} prefix="From" />}
-                      </figcaption>
-                    </figure>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-10 text-md text-muted">
-                Every piece is ordered and tracked in the Osho app.{' '}
-                <a href="#download" className="inline-flex min-h-11 items-center gap-1 font-medium text-accent underline-offset-4 hover:underline">
-                  Get the app <ArrowRight className="h-4 w-4" strokeWidth={1.75} aria-hidden />
-                </a>
-              </p>
-            </div>
-          </section>
-        )}
-
-        {/* ════ L'app, écran par écran — en 3D ════ */}
-        <AtelierTour />
-
-        {/* ════ Mesures : un tableau de valeurs, pas des cartes ════ */}
-        <section id="measurements" className="border-b border-hairline">
-          <div className="mx-auto grid max-w-[1360px] gap-10 px-4 py-16 sm:px-8 md:py-24 lg:grid-cols-[1fr_1.4fr] lg:gap-16">
-            <div>
-              <SectionHeading eyebrow="Your measurements" title="Measured once. Every order cut from it." />
-              <p className="mt-5 max-w-md text-base text-muted">
-                A guided tutorial walks you through each measurement. Your profile is kept in the app
-                and sent with every order, so your tailor cuts to your body — not to a size chart.
-              </p>
-            </div>
-            <dl className="grid border-t border-hairline sm:grid-cols-2 sm:gap-x-10">
-              {MEASUREMENTS.map(([label, detail]) => (
-                <div key={label} className="flex items-baseline justify-between gap-4 border-b border-hairline py-[11px]">
-                  <dt className="text-base">{label}</dt>
-                  <dd className="text-sm text-muted">{detail}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </section>
-
-        {/* ════ Témoignages ════ */}
-        <section className="border-b border-hairline">
-          <div className="mx-auto max-w-[1360px] px-4 py-16 sm:px-8 md:py-24">
-            <SectionHeading eyebrow="Testimonials" title="They wear Osho" />
-            <ul className="mt-10 grid border-t border-hairline md:grid-cols-3">
-              {REVIEWS.map(({ name, city, text }, i) => (
-                <li
-                  key={name}
-                  className={`border-b border-hairline py-8 md:pr-8 ${i > 0 ? 'md:border-l md:pl-8' : ''}`}
-                >
-                  <figure>
-                    <blockquote className="serif-md text-xl leading-snug">
-                      &ldquo;{text}&rdquo;
-                    </blockquote>
-                    <figcaption className="mt-5 text-md">
-                      <span className="font-medium">{name}</span>
-                      <span className="text-muted"> · {city}</span>
-                    </figcaption>
-                  </figure>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        {/* ════ Téléchargement ════ */}
-        <section id="download" className="border-b border-hairline">
-          <div className="mx-auto flex max-w-[1360px] flex-col items-start gap-6 px-4 py-16 sm:px-8 md:items-center md:py-24 md:text-center">
-            <LogoMark size={40} />
-            <h2 className="max-w-2xl serif-lg text-3xl font-semibold md:text-4xl">
-              Your first piece, cut for you.
-            </h2>
-            <p className="max-w-md text-base text-muted">
-              Download Osho, save your measurements, and choose your fabric. Free on iPhone and Android.
-            </p>
-            <div className="flex flex-wrap gap-3 md:justify-center">
-              <StoreBadge store="apple" />
-              <StoreBadge store="google" />
-            </div>
-          </div>
-        </section>
+      <main id="content">
+        <Hero />
+        <Facts />
+        <HowItWorks />
+        <Lookbook />
+        <Fabrics />
+        <Story />
+        <Faq />
+        <Download />
       </main>
 
       <SiteFooter />
-    </div>
+    </LandingShell>
   )
 }
 
-// ─── Morceaux ─────────────────────────────────────────────────────────────────
+// ─── 1. Visuel principal ──────────────────────────────────────────────────────
 
-function SiteHeader({ hasCollection }: { hasCollection: boolean }) {
+function Hero() {
   return (
-    <header className="sticky top-0 z-20 border-b border-hairline bg-bg">
-      <div className="mx-auto flex h-16 max-w-[1360px] items-center justify-between gap-4 px-4 sm:px-8">
-        <Link href="/" aria-label="Osho — home" className="flex min-h-11 items-center">
-          <Logo size={24} />
-        </Link>
-        <nav aria-label="Sections" className="hidden items-center gap-1 md:flex">
-          {[
-            ...(hasCollection ? [['#collection', 'Collection']] : []),
-            ['#tour', 'The app'],
-            ['#measurements', 'Measurements'],
-          ].map(([href, label]) => (
-            <a
-              key={href}
-              href={href}
-              className="flex min-h-11 items-center rounded-sm px-3 text-md text-muted transition-colors hover:text-ink"
-            >
-              {label}
-            </a>
-          ))}
-        </nav>
-        <a
-          href="#download"
-          className="flex h-11 items-center rounded-sm border border-ink px-4 text-md font-medium transition-colors hover:bg-surface"
-        >
-          Get the app
-        </a>
+    <section className={s.hero} aria-labelledby="hero-title">
+      <div className={`${s.container} ${s.heroGrid}`}>
+        <div className={s.heroText}>
+          <p className={s.label}>Made to measure · {LOCATION}</p>
+          <h1 id="hero-title" className={s.h1}>
+            Cut to{' '}
+            <span className={s.nowrap}>
+              <span className={s.keyword}>
+                your body
+                <svg className={s.chalkStroke} viewBox="0 0 200 12" preserveAspectRatio="none" aria-hidden>
+                  <path d="M3 9 L197 4" pathLength={1} />
+                </svg>
+              </span>
+              ,
+            </span>{' '}
+            not a size
+          </h1>
+          <p className={s.lead}>
+            Bazin, Vlisco and wax, sewn to your measurements by West African tailors, then
+            delivered to your door. No tape measure, no fitting room.
+          </p>
+          <div className={s.heroActions}>
+            <DownloadButton appStoreUrl={APP_STORE_URL} playStoreUrl={PLAY_STORE_URL} className={s.btnPrimary}>
+              Get the app
+            </DownloadButton>
+            <a href="#how-it-works" className={s.textLink}>See how it works</a>
+          </div>
+        </div>
+
+        <div className={s.heroVisual}>
+          <div className={s.heroPhotoFrame}>
+            <Photo
+              name="hero-couple"
+              priority
+              sizes="(min-width: 900px) 520px, 92vw"
+              alt="A couple in matching olive-green traditional outfits with gold embroidery, standing in a dark studio."
+              className={s.heroPhoto}
+            />
+          </div>
+          {/* Écran recadré : on montre le profil de mesures et les nouveautés,
+              pas l'accroche, déjà en titre à gauche. */}
+          <Phone
+            name="01_home"
+            priority
+            crop="bottom"
+            sizes="(min-width: 900px) 190px, 150px"
+            className={s.heroPhone}
+            alt="The Osho app: the measurement profile card, the Couple, Woman and Man filters, and new arrivals."
+          />
+        </div>
       </div>
-    </header>
+    </section>
   )
 }
 
-function SiteFooter() {
+// ─── Repères ──────────────────────────────────────────────────────────────────
+
+function Facts() {
+  const facts = [
+    { value: '13', text: 'measurements from your height and weight' },
+    { value: '±1–2 cm', text: 'accuracy with one front photo' },
+    { value: '1 min', text: 'to rescan when your body changes' },
+    { value: '3', text: 'collections: couple, women, men' },
+  ]
   return (
-    <footer>
-      <div className="mx-auto grid max-w-[1360px] gap-10 px-4 py-14 sm:px-8 md:grid-cols-[1.4fr_1fr]">
-        <div className="space-y-4">
-          <Logo size={24} />
-          <p className="max-w-sm text-md text-muted">
-            Made-to-measure West African tailoring, for the diaspora in the United States.
+    <section className={s.facts} aria-label="Osho in numbers">
+      <ul className={`${s.container} ${s.factsList}`}>
+        {facts.map((f) => (
+          <li key={f.text}>
+            <span className={s.factValue}>{f.value}</span>
+            <span className={s.factText}>{f.text}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+// ─── 2. Comment ça marche ─────────────────────────────────────────────────────
+
+const STEPS = [
+  {
+    title: 'Enter your height and weight',
+    text: (
+      <>
+        You get all <span className={s.mono}>13</span> measurements at once, accurate to{' '}
+        <span className={s.mono}>±3–4&nbsp;cm</span>.
+      </>
+    ),
+  },
+  {
+    title: 'Add a front photo',
+    text: (
+      <>
+        One photo sharpens them to <span className={s.mono}>±1–2&nbsp;cm</span>. No one needs to
+        help you.
+      </>
+    ),
+  },
+  {
+    title: 'Order, again and again',
+    text: <>Your profile is saved once and used for every order. Add a second one for someone close.</>,
+  },
+] as const
+
+function HowItWorks() {
+  return (
+    <section id="how-it-works" className={s.section} aria-labelledby="how-title">
+      <div className={`${s.container} ${s.howGrid}`}>
+        <div data-reveal>
+          <p className={s.label}>How it works</p>
+          <h2 id="how-title" className={s.h2}>Your measurements, without a tape measure</h2>
+          <ol className={s.steps}>
+            {STEPS.map((step, i) => (
+              <li key={step.title} className={s.step}>
+                <span className={s.stepIndex}>
+                  <span className={s.mono}>{String(i + 1).padStart(2, '0')}</span>
+                </span>
+                <div>
+                  <h3 className={s.h3}>{step.title}</h3>
+                  <p className={s.body}>{step.text}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div className={s.howVisual} data-reveal>
+          <TapeDemo />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── 3. Inspiration ───────────────────────────────────────────────────────────
+
+const LOOKS: { name: PhotoName; tag: string; alt: string }[] = [
+  { name: 'look-women', tag: 'Women', alt: 'A woman in an olive-green fitted gown with long flared sleeves and a matching gele.' },
+  { name: 'look-men', tag: 'Men', alt: 'A man in a flowing olive-green agbada and cap, holding a carved cane.' },
+  { name: 'look-ceremony', tag: 'Ceremony', alt: 'A woman in an orange and gold ceremony outfit with coral beads, holding a clutch.' },
+  { name: 'look-evening', tag: 'Evening', alt: 'A woman in a fitted bronze sequined gown and a gold gele, on a warm brown backdrop.' },
+]
+
+function Lookbook() {
+  return (
+    <section id="looks" className={`${s.section} ${s.sectionAlt}`} aria-labelledby="looks-title">
+      <div className={s.container}>
+        <div className={s.sectionHeadRow} data-reveal>
+          <div className={s.sectionHead}>
+            <p className={s.label}>Inspiration</p>
+            <h2 id="looks-title" className={s.h2}>Looks for every occasion</h2>
+          </div>
+          <p className={s.body}>
+            The full catalogue (couple, women, men) is in the app. Every design shows its tailoring
+            time before you order, for example <span className={s.mono}>14&nbsp;days</span>.
           </p>
         </div>
-        <div className="space-y-3">
-          <h2 className="eyebrow">Contact</h2>
-          <ul className="space-y-1 text-md">
-            <li>
-              <a href="mailto:contact@osho.app" className="inline-flex min-h-11 items-center gap-2.5 underline-offset-4 hover:underline">
-                <Mail className="h-4 w-4 text-muted" strokeWidth={1.75} aria-hidden />
-                contact@osho.app
-              </a>
+        <ul className={s.looks} data-reveal>
+          {LOOKS.map((look) => (
+            <li key={look.name} className={s.look}>
+              <Photo name={look.name} alt={look.alt} sizes="(min-width: 900px) 280px, 46vw" />
+              <span className={s.lookTag}>{look.tag}</span>
             </li>
-            <li className="flex min-h-11 items-center gap-2.5">
-              <MapPin className="h-4 w-4 text-muted" strokeWidth={1.75} aria-hidden />
-              Sioux City, Iowa, United States
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+// ─── 4. Tissus ────────────────────────────────────────────────────────────────
+
+const FABRICS: { name: PhotoName; title: string; text: string; alt: string }[] = [
+  {
+    name: 'fabric-bazin',
+    title: 'Bazin',
+    text: 'A polished cotton damask with a deep sheen, often finished with embroidery.',
+    alt: 'Close-up of a draped damask fabric with a woven floral pattern and a soft sheen.',
+  },
+  {
+    name: 'fabric-vlisco',
+    title: 'Vlisco',
+    text: 'Premium wax prints known for bold colors and storytelling patterns.',
+    alt: 'Close-up of a wax print with gold and orange medallions outlined in navy.',
+  },
+  {
+    name: 'fabric-wax',
+    title: 'Wax',
+    text: 'Classic West African prints, crisp and colorful, for every day and every party.',
+    alt: 'Folded wax-print fabrics stacked in bright patterns.',
+  },
+]
+
+function Fabrics() {
+  return (
+    <section id="fabrics" className={s.section} aria-labelledby="fabrics-title">
+      <div className={s.container}>
+        <div className={s.sectionHead} data-reveal>
+          <p className={s.label}>Fabrics</p>
+          <h2 id="fabrics-title" className={s.h2}>Choose the fabric, we cut it to you</h2>
+        </div>
+        <ul className={s.fabrics} data-reveal>
+          {FABRICS.map((f) => (
+            <li key={f.name} className={s.fabric}>
+              <Photo name={f.name} alt={f.alt} sizes="(min-width: 760px) 360px, 92vw" className={s.fabricPhoto} />
+              <h3 className={s.h3}>{f.title}</h3>
+              <p className={s.body}>{f.text}</p>
             </li>
-          </ul>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+// ─── 5. Histoire et livraison ─────────────────────────────────────────────────
+// Aucun prix ni frais de livraison sur cette page.
+
+function Story() {
+  const stages = [
+    { title: 'Order', text: 'Pay by card, securely, with Stripe.' },
+    { title: 'Tailoring', text: 'Sewn to your measurements, within the time shown on the design.' },
+    { title: 'Shipping', text: 'Checked, folded and packed with care.' },
+    { title: 'Delivery', text: 'At the address of your choice.' },
+  ]
+  return (
+    <section id="story" className={`${s.section} ${s.sectionInk}`} aria-labelledby="story-title">
+      <div className={`${s.container} ${s.storyGrid}`}>
+        <div className={s.storyPhotoWrap} data-reveal>
+          <Photo
+            name="story-tailor"
+            alt="A tailor at his sewing machine in a workshop, garments hanging behind him."
+            sizes="(min-width: 900px) 480px, 92vw"
+            className={s.storyPhoto}
+          />
+        </div>
+        <div data-reveal>
+          <p className={s.labelOnInk}>Our story</p>
+          <h2 id="story-title" className={s.h2}>Based in Sioux City. Sewn by West African tailors.</h2>
+          <p className={s.bodyOnInk}>
+            Osho brings the craft of West African tailoring to your door. You choose the design and
+            the fabric, your profile carries your measurements, and a tailor sews your outfit for you
+            alone.
+          </p>
+          <ol className={s.stages}>
+            {stages.map((stage, i) => (
+              <li key={stage.title}>
+                <span className={s.mono}>{String(i + 1).padStart(2, '0')}</span>
+                <span className={s.stageTitle}>{stage.title}</span>
+                <span className={s.stageText}>{stage.text}</span>
+              </li>
+            ))}
+          </ol>
         </div>
       </div>
-      <div className="border-t border-hairline">
-        <p className="mx-auto max-w-[1360px] px-4 py-5 text-sm text-muted sm:px-8">
-          © {new Date().getFullYear()} Osho. All rights reserved.
-        </p>
+    </section>
+  )
+}
+
+// ─── 6. Questions fréquentes ──────────────────────────────────────────────────
+// Réponses limitées à ce que l'app fait vraiment : aucune promesse de délai de
+// retouche ni de durée de conservation qui ne soit pas écrite ailleurs.
+
+function Faq() {
+  const items: { q: string; a: React.ReactNode }[] = [
+    {
+      q: 'How accurate are measurements without a tape measure?',
+      a: (
+        <>
+          With your height and weight, to <span className={s.mono}>±3–4&nbsp;cm</span>. A front
+          photo sharpens them to <span className={s.mono}>±1–2&nbsp;cm</span>. You can rescan at
+          any time.
+        </>
+      ),
+    },
+    {
+      q: 'How long until I receive my outfit?',
+      a: (
+        <>
+          The tailoring time is shown on each design (for example{' '}
+          <span className={s.mono}>14&nbsp;days</span>). Delivery comes on top of that.
+        </>
+      ),
+    },
+    {
+      q: 'Where are you based?',
+      a: <>In {LOCATION}. Orders are delivered to the address of your choice.</>,
+    },
+    { q: 'How do I pay?', a: <>By card, securely, with Stripe. Osho never sees or stores your card number.</> },
+    {
+      q: "What if the outfit doesn't fit perfectly?",
+      a: (
+        <>
+          Write to us at <a href={`mailto:${CONTACT_EMAIL}`} className={s.inlineLink}>{CONTACT_EMAIL}</a>{' '}
+          with a few photos. We look at it with your tailor and find a solution with you.
+        </>
+      ),
+    },
+    {
+      q: 'Can I order for someone else?',
+      a: <>Yes: create a second measurement profile for a relative, or for matching couple outfits.</>,
+    },
+    {
+      q: 'What happens to my front photo?',
+      a: (
+        <>
+          It is used only to estimate your measurements. Read how we handle it in our{' '}
+          <a href="/legal/privacy" className={s.inlineLink}>privacy policy</a>.
+        </>
+      ),
+    },
+  ]
+
+  return (
+    <section id="faq" className={s.section} aria-labelledby="faq-title">
+      <div className={`${s.container} ${s.faqGrid}`}>
+        <div className={s.faqSide} data-reveal>
+          <p className={s.label}>FAQ</p>
+          <h2 id="faq-title" className={s.h2}>Before you order</h2>
+          <div className={s.contactCard}>
+            <p className={s.contactTitle}>Still have a question?</p>
+            <p className={s.body}>Write to us, we&apos;re happy to help.</p>
+            <a href={`mailto:${CONTACT_EMAIL}`} className={s.textLink}>{CONTACT_EMAIL}</a>
+          </div>
+        </div>
+        <div className={s.faq} data-reveal>
+          {items.map(({ q, a }) => (
+            <details key={q} className={s.faqItem}>
+              <summary>
+                <span>{q}</span>
+                <svg className={s.faqIcon} viewBox="0 0 16 16" aria-hidden>
+                  <path d="M8 2v12M2 8h12" />
+                </svg>
+              </summary>
+              <p className={s.body}>{a}</p>
+            </details>
+          ))}
+        </div>
       </div>
-    </footer>
+    </section>
   )
 }
 
-function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
-  return (
-    <div>
-      <p className="eyebrow">{eyebrow}</p>
-      <h2 className="mt-3 max-w-xl serif-lg text-3xl font-semibold">{title}</h2>
-    </div>
-  )
-}
-
-/** Les prix sont en Fraunces. 17 px → interlettrage de la plage < 20 px. */
-function PriceTag({ value, prefix }: { value: string; prefix?: string }) {
-  return (
-    <p className="text-sm text-muted">
-      {prefix && <span>{prefix} </span>}
-      <span className="serif-sm text-lg tabular-nums text-ink">{value}</span>
-    </p>
-  )
-}
+// ─── 7. Téléchargement ────────────────────────────────────────────────────────
 
 /**
- * Badges officiels des magasins, intégrés tels quels (public/badges/).
- * Exception assumée aux jetons : ce sont des marques déposées, Apple et Google
- * imposent leurs couleurs et interdisent de les redessiner. Même hauteur pour
- * les deux, comme le demandent leurs chartes ; 50 px tient la cible de 44 px
- * et laisse les deux badges côte à côte à 390 px.
+ * Badges officiels des magasins (public/badges/). Apple et Google imposent
+ * leurs couleurs : exception assumée à la palette.
  */
-const BADGES = {
-  apple:  { href: APP_STORE_URL,  src: '/badges/app-store.svg',   alt: 'Download on the App Store' },
-  google: { href: PLAY_STORE_URL, src: '/badges/google-play.svg', alt: 'Get it on Google Play' },
-} as const
-
-function StoreBadge({ store }: { store: keyof typeof BADGES }) {
-  const b = BADGES[store]
+function StoreBadge({ src, alt, href, store }: { src: string; alt: string; href: string | null; store: string }) {
+  // eslint-disable-next-line @next/next/no-img-element -- SVG vectoriel
+  const img = <img src={src} alt={href ? alt : ''} width={169} height={50} loading="lazy" className={s.badgeImg} />
+  if (href) {
+    return (
+      <a href={href} className={s.badge} target="_blank" rel="noopener noreferrer">
+        {img}
+      </a>
+    )
+  }
   return (
-    <a
-      href={b.href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex rounded-sm transition-opacity hover:opacity-85"
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element -- SVG vectoriel, rien à optimiser */}
-      <img src={b.src} alt={b.alt} width={169} height={50} className="block h-[50px] w-auto" />
-    </a>
+    <span className={s.badgePending}>
+      {img}
+      <span className={s.badgeNote}>{store} · coming soon</span>
+    </span>
   )
 }
 
-// ─── Contenu ──────────────────────────────────────────────────────────────────
-
-
-const MEASUREMENTS: [string, string][] = [
-  ['Chest', 'around the fullest part'],
-  ['Waist', 'at the natural waist'],
-  ['Hips', 'around the widest part'],
-  ['Shoulders', 'seam to seam'],
-  ['Sleeve', 'shoulder to wrist'],
-  ['Neck', 'at the base'],
-  ['Upper arm', 'around the fullest part'],
-  ['Back length', 'neck to waist'],
-  ['Thigh', 'around the fullest part'],
-  ['Inseam', 'crotch to ankle'],
-  ['Trouser length', 'waist to ankle'],
-  ['Dress length', 'shoulder to hem'],
-]
-
-const REVIEWS = [
-  { name: 'Aminata D.',  city: 'Dakar, Senegal',         text: 'My wedding boubou was absolutely perfect. The tailor followed my instructions to the letter.' },
-  { name: 'Kofi Mensah', city: 'Accra, Ghana',           text: 'Watching my outfit being made step by step from my phone was incredible. Top quality.' },
-  { name: 'Fatou Baldé', city: "Abidjan, Côte d'Ivoire", text: 'Finally an app that truly celebrates African fashion. My kaftan is exactly what I imagined.' },
-]
+function Download() {
+  const live = Boolean(APP_STORE_URL || PLAY_STORE_URL)
+  return (
+    <section id="download" className={`${s.section} ${s.sectionTight}`} aria-labelledby="download-title">
+      <div className={s.container}>
+        <div className={s.downloadCard} data-reveal>
+          <div className={`${s.tape} ${s.downloadTape}`} aria-hidden />
+          <div className={s.downloadText}>
+            <LogoMark size={40} />
+            <h2 id="download-title" className={s.h2}>
+              Your next outfit starts with your measurements.
+            </h2>
+            <p className={s.body}>
+              {live
+                ? 'Download Osho, save your profile once, and choose your fabric. Your tailor does the rest.'
+                : 'Osho is coming to the App Store and Google Play. Until then, we are happy to answer your questions or help with a special request.'}
+            </p>
+            {!live && (
+              <a href={`mailto:${CONTACT_EMAIL}?subject=Osho`} className={`${s.btnPrimary} ${s.downloadAction}`}>
+                Email us
+              </a>
+            )}
+          </div>
+          <div className={s.badges}>
+            <StoreBadge src="/badges/app-store.svg" alt="Download on the App Store" href={APP_STORE_URL} store="App Store" />
+            <StoreBadge src="/badges/google-play.svg" alt="Get it on Google Play" href={PLAY_STORE_URL} store="Google Play" />
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}

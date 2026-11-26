@@ -1,111 +1,111 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Osho — direction « Atelier »
-   Papier plat, angles à 2 px, une seule serif pour ce qui a de la valeur.
+   Osho — direction « Indigo & craie », commune à la landing et au dashboard.
+   Fond froid, indigo pour l'action, craie (rouge) pour ce qui compte, angles
+   nets à 4 px, Archivo pour le texte, Martian Mono pour les chiffres.
 
-   Ce fichier est le SEUL endroit où une couleur est écrite en dur. Tout le
-   reste passe par les jetons ci-dessous (bg-surface, text-muted, border-hairline…).
-   Chaque jeton existe dans les deux thèmes.
+   Ce fichier est le SEUL endroit du dashboard où une couleur est écrite en
+   dur. Tout le reste passe par les jetons ci-dessous (bg-surface, text-muted,
+   border-hairline…). Chaque jeton existe dans les deux thèmes. La landing
+   reprend les mêmes valeurs dans components/landing/landing.module.css.
    ───────────────────────────────────────────────────────────────────────────── */
 
 :root {
-  --bg:              #F7F3EA;   /* le papier, fond de toute page */
-  --surface:         #FDFBF6;   /* une zone posée sur le papier */
-  --ink:             #16181D;   /* texte principal */
-  --muted:           #5E6066;   /* texte secondaire */
-  --hairline:        #DED5C4;   /* traits, bordures, séparateurs */
-  --placeholder:     #EDE6D7;   /* emplacement d'image vide */
-  --placeholder-ink: #8A8578;   /* icône dans un emplacement vide — jamais du texte */
-  --accent:          #2A3F6B;   /* liens, actions secondaires */
-  --accent-bg:       #ECEFF6;
-  --accent-border:   #C3CCDF;
-  --accent-ink:      #1C2C4D;
-  --warn-bg:         #F6EDE4;   /* attention, rien n'est cassé */
-  --warn-border:     #D9B48F;
+  --bg:              #F4F6FA;   /* fond de toute page */
+  --surface:         #FFFFFF;   /* une zone posée sur le fond */
+  --ink:             #0B1226;   /* texte principal */
+  --muted:           #4E5873;   /* texte secondaire */
+  --hairline:        #DDE2EC;   /* traits, bordures, séparateurs */
+  --placeholder:     #E8ECF6;   /* emplacement d'image vide */
+  --placeholder-ink: #6B7593;   /* icône dans un emplacement vide — jamais du texte */
+  --accent:          #1B2A5C;   /* indigo : liens, actions secondaires */
+  --accent-bg:       #E8ECF6;
+  --accent-border:   #C3CCE3;
+  --accent-ink:      #14204A;
+  --warn-bg:         #F8EEE2;   /* attention, rien n'est cassé */
+  --warn-border:     #DDB98F;
   --warn-ink:        #6B4410;
-  --ok-bg:           #E7EFE8;
-  --ok-border:       #B3CDB9;
-  --ok-ink:          #24502F;
-  --primary-fill:    #16181D;   /* bouton principal, plein */
-  --primary-ink:     #F7F3EA;
-  --like:            #A8322A;   /* rouge garance, un favori */
+  --ok-bg:           #E6F1EA;
+  --ok-border:       #ADD0B8;
+  --ok-ink:          #1F5233;
+  --primary-fill:    #1B2A5C;   /* bouton principal, plein */
+  --primary-ink:     #FFFFFF;
+  --like:            #C93A24;   /* craie : un favori, une mise en avant */
 
-  /* Ajouts du dashboard (absents du brief, déclinés dans les deux thèmes) :
-     une action irréversible ou une erreur n'est ni « warn » ni « like ». */
-  --danger-bg:       #F6E7E3;
-  --danger-border:   #DDB1A9;
-  --danger-ink:      #8A2620;
-  --scrim:           rgb(22 24 29 / 0.48);  /* voile sous une boîte de dialogue */
+  /* Une action irréversible ou une erreur n'est ni « warn » ni « like ». */
+  --danger-bg:       #FBEAE6;
+  --danger-border:   #E7B3A9;
+  --danger-ink:      #9B2A1A;
+  --scrim:           rgb(11 18 38 / 0.48);  /* voile sous une boîte de dialogue */
 
-  /* Logo : l'anneau suit l'encre du papier, le repère ne change jamais de rôle */
-  --logo-ring:       #16181D;
-  --logo-mark:       #A8322A;
+  /* Logo : l'anneau suit l'encre, le repère reste la craie */
+  --logo-ring:       #0B1226;
+  --logo-mark:       #C93A24;
 
   color-scheme: light;
 }
 
-/* Thème sombre — pas une inversion : le fond reste chaud, l'accent est
-   éclairci pour tenir 4,5:1, le rouge passe à #E8705F. */
+/* Thème sombre : indigo profond, accent éclairci pour tenir 4,5:1. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:              #14130F;
-    --surface:         #1C1A16;
-    --ink:             #F2EEE4;
-    --muted:           #A09A8D;
-    --hairline:        #332F28;
-    --placeholder:     #26231D;
-    --placeholder-ink: #938D7F;
-    --accent:          #8FA8D6;
-    --accent-bg:       #1A2236;
-    --accent-border:   #2E3A54;
-    --accent-ink:      #B9C8E6;
+    --bg:              #0B1226;
+    --surface:         #121C38;
+    --ink:             #EDE9DF;
+    --muted:           #A9B0C6;
+    --hairline:        #243256;
+    --placeholder:     #18244A;
+    --placeholder-ink: #8D97B5;
+    --accent:          #9DB0EE;
+    --accent-bg:       #18244A;
+    --accent-border:   #2E3E6E;
+    --accent-ink:      #C3D0F5;
     --warn-bg:         #2A1F10;
     --warn-border:     #5C4526;
     --warn-ink:        #E6C28E;
-    --ok-bg:           #12241A;
-    --ok-border:       #2C4433;
+    --ok-bg:           #10261B;
+    --ok-border:       #2B4A37;
     --ok-ink:          #9FCBAB;
-    --primary-fill:    #F2EEE4;
-    --primary-ink:     #14130F;
-    --like:            #E8705F;
-    --danger-bg:       #2C1613;
-    --danger-border:   #5E2E27;
-    --danger-ink:      #F0A193;
-    --scrim:           rgb(8 7 5 / 0.72);
-    --logo-ring:       #F7F3EA;
-    --logo-mark:       #D4564A;
+    --primary-fill:    #9DB0EE;
+    --primary-ink:     #0B1226;
+    --like:            #F0634A;
+    --danger-bg:       #2E1512;
+    --danger-border:   #62302A;
+    --danger-ink:      #F4A596;
+    --scrim:           rgb(4 7 16 / 0.72);
+    --logo-ring:       #EDE9DF;
+    --logo-mark:       #F0634A;
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg:              #14130F;
-  --surface:         #1C1A16;
-  --ink:             #F2EEE4;
-  --muted:           #A09A8D;
-  --hairline:        #332F28;
-  --placeholder:     #26231D;
-  --placeholder-ink: #938D7F;
-  --accent:          #8FA8D6;
-  --accent-bg:       #1A2236;
-  --accent-border:   #2E3A54;
-  --accent-ink:      #B9C8E6;
+  --bg:              #0B1226;
+  --surface:         #121C38;
+  --ink:             #EDE9DF;
+  --muted:           #A9B0C6;
+  --hairline:        #243256;
+  --placeholder:     #18244A;
+  --placeholder-ink: #8D97B5;
+  --accent:          #9DB0EE;
+  --accent-bg:       #18244A;
+  --accent-border:   #2E3E6E;
+  --accent-ink:      #C3D0F5;
   --warn-bg:         #2A1F10;
   --warn-border:     #5C4526;
   --warn-ink:        #E6C28E;
-  --ok-bg:           #12241A;
-  --ok-border:       #2C4433;
+  --ok-bg:           #10261B;
+  --ok-border:       #2B4A37;
   --ok-ink:          #9FCBAB;
-  --primary-fill:    #F2EEE4;
-  --primary-ink:     #14130F;
-  --like:            #E8705F;
-  --danger-bg:       #2C1613;
-  --danger-border:   #5E2E27;
-  --danger-ink:      #F0A193;
-  --scrim:           rgb(8 7 5 / 0.72);
-  --logo-ring:       #F7F3EA;
-  --logo-mark:       #D4564A;
+  --primary-fill:    #9DB0EE;
+  --primary-ink:     #0B1226;
+  --like:            #F0634A;
+  --danger-bg:       #2E1512;
+  --danger-border:   #62302A;
+  --danger-ink:      #F4A596;
+  --scrim:           rgb(4 7 16 / 0.72);
+  --logo-ring:       #EDE9DF;
+  --logo-mark:       #F0634A;
   color-scheme: dark;
 }
 
@@ -120,8 +120,8 @@
   --drop-shadow-*: initial;
   --text-*: initial;
 
-  /* Un seul rayon, partout. */
-  --radius-sm: 2px;
+  /* Un seul rayon, partout : 4 px, comme les boutons de la landing. */
+  --radius-sm: 4px;
 
   /* Corps de texte. Plancher absolu : 11 px. */
   --text-2xs: 11px;      --text-2xs--line-height: 1.4;
@@ -130,7 +130,7 @@
   --text-md: 14px;       --text-md--line-height: 1.5;    /* corps dense du dashboard */
   --text-base: 15px;     --text-base--line-height: 1.55; /* texte courant */
   --text-lg: 17px;       --text-lg--line-height: 1.5;
-  /* Titres (Fraunces) */
+  /* Titres (Archivo SemiCondensed) */
   --text-xl: 20px;       --text-xl--line-height: 1.3;
   --text-2xl: 24px;      --text-2xl--line-height: 1.2;
   --text-3xl: 32px;      --text-3xl--line-height: 1.12;
@@ -166,30 +166,34 @@
   --color-danger-ink:     var(--danger-ink);
   --color-scrim:          var(--scrim);
 
-  --font-sans:  var(--font-dm-sans), system-ui, sans-serif;
-  --font-serif: var(--font-fraunces), Georgia, serif;
-  --font-mono:  ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
+  --font-sans:  var(--font-archivo), system-ui, sans-serif;
+  /* « serif » est le nom historique de la police des titres : c'est désormais
+     Archivo SemiCondensed, posée par les utilitaires serif-*. */
+  --font-serif: var(--font-archivo), system-ui, sans-serif;
+  --font-mono:  var(--font-martian), ui-monospace, monospace;
 }
 
-/* ── Fraunces : l'interlettrage dépend de la taille ─────────────────────────
-   Une seule coupe optique (celle des titres), donc :
-     ≥ 24 px  → −0.012 × taille            = −0.012em
-     ≥ 20 px  → 0
-     < 20 px  → +0.008 × (20 − taille) px  = 0.16px − 0.008em
-   Chaque utilitaire pose aussi la famille : on l'associe à une taille de la
-   bonne plage (serif-lg avec text-2xl et plus, serif-md avec text-xl,
-   serif-sm en dessous). */
+/* ── Titres : Archivo SemiCondensed ────────────────────────────────────────
+   Les noms serif-lg / serif-md / serif-sm sont conservés pour ne pas toucher
+   aux pages ; ils posent désormais la police des titres de la landing.
+   L'interlettrage se resserre avec la taille. */
 @utility serif-lg {
   font-family: var(--font-serif);
-  letter-spacing: -0.012em;
+  font-stretch: 87.5%;
+  font-weight: 700;
+  letter-spacing: -0.014em;
 }
 @utility serif-md {
   font-family: var(--font-serif);
-  letter-spacing: 0;
+  font-stretch: 87.5%;
+  font-weight: 650;
+  letter-spacing: -0.006em;
 }
 @utility serif-sm {
   font-family: var(--font-serif);
-  letter-spacing: calc(0.16px - 0.008em);
+  font-stretch: 87.5%;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 /* Intitulé de section : petites capitales, 12 px, 600, 1.44 px, muted. */
@@ -232,7 +236,7 @@
 
   ::-webkit-scrollbar        { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track  { background: transparent; }
-  ::-webkit-scrollbar-thumb  { background: var(--hairline); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb  { background: var(--hairline); border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
   @media (prefers-reduced-motion: reduce) {

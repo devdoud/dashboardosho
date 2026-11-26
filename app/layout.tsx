@@ -1,43 +1,31 @@
 import type { Metadata } from 'next'
-import localFont from 'next/font/local'
 import { ThemeProvider } from '@/components/theme-provider'
+import { archivo, martianMono } from './fonts'
 import './globals.css'
 
-// Polices auto-hébergées (app/fonts, licence OFL, fichiers Fontsource, sous-ensemble
-// latin). `next/font/google` faisait échouer le build Turbopack sur Vercel
-// (« next/font/google queries have exactly one entry ») et dépendait du réseau.
+// Une seule famille pour tout le site, landing et dashboard : Archivo (texte,
+// titres en SemiCondensed) et Martian Mono (mesures, chiffres). Polices
+// auto-hébergées (app/fonts, licence OFL), voir app/fonts.ts.
 
-// Une seule serif, pour les titres et les prix — 400 et 600 uniquement.
-const fraunces = localFont({
-  src: [
-    { path: './fonts/fraunces-latin-400-normal.woff2', weight: '400', style: 'normal' },
-    { path: './fonts/fraunces-latin-600-normal.woff2', weight: '600', style: 'normal' },
-  ],
-  variable: '--font-fraunces',
-  display: 'swap',
-  fallback: ['Georgia', 'serif'],
-})
-
-// Tout le reste.
-const dmSans = localFont({
-  src: [
-    { path: './fonts/dm-sans-latin-400-normal.woff2', weight: '400', style: 'normal' },
-    { path: './fonts/dm-sans-latin-500-normal.woff2', weight: '500', style: 'normal' },
-    { path: './fonts/dm-sans-latin-600-normal.woff2', weight: '600', style: 'normal' },
-  ],
-  variable: '--font-dm-sans',
-  display: 'swap',
-  fallback: ['system-ui', 'sans-serif'],
-})
+// Adresse publique, pour les liens absolus des images de partage. Sur Vercel,
+// le domaine de production est fourni ; ailleurs, NEXT_PUBLIC_SITE_URL.
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : 'http://localhost:3000')
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: { default: 'Osho', template: '%s | Osho' },
   description: 'Made-to-measure West African tailoring — boubou, agbada, kaftan — cut to your exact measurements.',
 }
 
+// La landing et ses pages légales sont en anglais ; le dashboard et la page
+// de connexion déclarent `lang="fr"` sur leur propre conteneur.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${dmSans.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${archivo.variable} ${martianMono.variable}`} suppressHydrationWarning>
       <body>
         <ThemeProvider>{children}</ThemeProvider>
       </body>

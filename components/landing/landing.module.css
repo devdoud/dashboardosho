@@ -1,0 +1,1019 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Landing Osho — direction « Indigo & craie », identique à l'app.
+
+   Toutes les valeurs sont limitées à .root : le dashboard garde ses propres
+   couleurs (app/globals.css). Thème : `data-theme` posé sur <html> par
+   next-themes (bouton de l'en-tête) ; sans lui, prefers-color-scheme.
+
+   Règles de la direction :
+   - titres calmes : au-delà de 26 px, chaque point en plus compte pour moitié ;
+   - libellés de section en phrase normale, semi-gras, couleur secondaire ;
+   - la craie marque l'action principale, jamais la décoration ;
+   - coins nets : 4 px pour les boutons, 6 px pour les cartes et les photos ;
+   - la couleur vient des photos et des tissus, pas de l'interface.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.root {
+  --bg: #F4F6FA;
+  --surface: #FFFFFF;
+  --ink: #0B1226;
+  --muted: #4E5873;
+  --rule: #DDE2EC;
+  --dash: #B9C0D0;
+  --indigo: #1B2A5C;
+  --indigo-bg: #E8ECF6;
+  --chalk: #C93A24;
+  --on-chalk: #FFFFFF;
+  --gold: #B8862F;
+  --shadow: 0 1px 2px rgb(11 18 38 / 0.06), 0 18px 40px -22px rgb(11 18 38 / 0.28);
+  --bezel: #0B1226;         /* cadre de téléphone */
+  --photo-dim: none;        /* les photos s'assombrissent un peu en thème sombre */
+
+  /* Bloc sombre « Our story » : identique dans les deux thèmes. */
+  --ink-block: #0B1226;
+  --on-ink: #EDE9DF;
+  --on-ink-muted: #A9B0C6;
+
+  /* Le ruban de mesure garde les mêmes couleurs dans les deux thèmes. */
+  --tape: #1B2A5C;
+  --tape-tick: #EDE9DF;
+  --tape-mark: #F0634A;
+
+  /* Le logo de components/brand/logo.tsx lit ces deux variables. */
+  --logo-ring: var(--ink);
+  --logo-mark: var(--chalk);
+
+  --font-body: var(--font-archivo), system-ui, sans-serif;
+  --font-measure: var(--font-martian), ui-monospace, monospace;
+
+  --r-button: 4px;
+  --r-card: 6px;
+  --gutter: 20px;
+
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: clip;
+  color-scheme: light;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Thème sombre : choisi par le bouton, ou par le système tant qu'aucun choix
+   n'est posé. Les deux blocs portent les mêmes valeurs. */
+:global(html[data-theme='dark']) .root {
+  --bg: #0B1226;
+  --surface: #121C38;
+  --ink: #EDE9DF;
+  --muted: #A9B0C6;
+  --rule: #243256;
+  --dash: #3A4A78;
+  --indigo: #9DB0EE;
+  --indigo-bg: #18244A;
+  --chalk: #F0634A;
+  --on-chalk: #0B1226;
+  --gold: #D9AA55;
+  --shadow: 0 0 0 1px #243256, 0 18px 40px -22px rgb(0 0 0 / 0.6);
+  --bezel: #1E2A50;
+  --photo-dim: brightness(0.9);
+  --ink-block: #060B18;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(html:not([data-theme])) .root {
+    --bg: #0B1226;
+    --surface: #121C38;
+    --ink: #EDE9DF;
+    --muted: #A9B0C6;
+    --rule: #243256;
+    --dash: #3A4A78;
+    --indigo: #9DB0EE;
+    --indigo-bg: #18244A;
+    --chalk: #F0634A;
+    --on-chalk: #0B1226;
+    --gold: #D9AA55;
+    --shadow: 0 0 0 1px #243256, 0 18px 40px -22px rgb(0 0 0 / 0.6);
+    --bezel: #1E2A50;
+    --photo-dim: brightness(0.9);
+    --ink-block: #060B18;
+    color-scheme: dark;
+  }
+}
+
+.root *:focus-visible {
+  outline: 2px solid var(--indigo);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.root ::selection {
+  background: var(--indigo-bg);
+  color: var(--ink);
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+@media (min-width: 640px) {
+  .root { --gutter: 32px; }
+}
+
+.skip {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 50;
+  padding: 10px 16px;
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+}
+.skip:focus { top: 12px; }
+
+/* ── Typographie ─────────────────────────────────────────────────────────── */
+
+.h1,
+.h2,
+.h3,
+.wordmark {
+  font-family: var(--font-body);
+  font-stretch: 87.5%;      /* Archivo SemiCondensed */
+  text-wrap: balance;
+}
+
+.h1 {
+  font-size: clamp(38px, 2.6vw + 24px, 58px);
+  line-height: 1.02;
+  font-weight: 700;
+  letter-spacing: -0.022em;
+  margin: 16px 0 0;
+}
+
+.h2 {
+  font-size: clamp(28px, 1.2vw + 22px, 38px);
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.016em;
+  margin: 8px 0 0;
+}
+
+.h3 {
+  font-size: 20px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.004em;
+  margin: 0;
+}
+
+/* Libellé de section : phrase normale, semi-gras, avec un trait de craie. */
+.label,
+.labelOnInk {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--muted);
+}
+.label::before,
+.labelOnInk::before {
+  content: '';
+  width: 18px;
+  height: 2px;
+  background: var(--chalk);
+}
+.labelOnInk { color: var(--on-ink-muted); }
+
+.lead {
+  margin: 20px 0 0;
+  max-width: 34rem;
+  font-size: 19px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.body {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+.bodyOnInk {
+  margin: 16px 0 0;
+  max-width: 36rem;
+  color: var(--on-ink-muted);
+  font-size: 17px;
+}
+
+.bodyMuted {
+  margin: 12px 0 0;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+/* Tout ce qui se mesure. Martian Mono est large : on le resserre d'un cran. */
+.mono {
+  font-family: var(--font-measure);
+  font-size: 0.86em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  white-space: nowrap;
+}
+.body .mono,
+.lead .mono { color: var(--ink); }
+
+/* ── Boutons et liens ────────────────────────────────────────────────────── */
+
+.btnPrimary,
+.btnSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-button);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Le seul bouton craie de l'écran. */
+.btnPrimary {
+  min-height: 54px;
+  padding: 0 28px;
+  border: 0;
+  background: var(--chalk);
+  color: var(--on-chalk);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btnPrimary:hover { background: color-mix(in srgb, var(--chalk) 88%, var(--ink)); }
+.btnPrimary:disabled { opacity: 0.7; cursor: progress; }
+
+.btnSecondary {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1.5px solid var(--indigo);
+  color: var(--indigo);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.btnSecondary:hover { background: var(--indigo-bg); }
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--chalk);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+.textLink:hover { color: var(--chalk); }
+
+.themeSwitch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-button);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.themeSwitch:hover { color: var(--ink); background: var(--surface); }
+.themeSwitch svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── En-tête ─────────────────────────────────────────────────────────────── */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--rule);
+}
+
+.headerInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 68px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Petit écran : le bouton secondaire laisse la place au logo et au thème. */
+@media (max-width: 420px) {
+  .headerActions .btnSecondary { padding: 0 12px; font-size: 14px; }
+}
+
+.brandLink {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.nav {
+  display: none;
+  gap: 4px;
+}
+.nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--r-button);
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.nav a:hover { color: var(--ink); }
+
+@media (min-width: 900px) {
+  .nav { display: flex; }
+}
+
+/* ── Sections ────────────────────────────────────────────────────────────── */
+
+.section {
+  padding-block: 80px;
+  scroll-margin-top: 68px;
+}
+.sectionAlt {
+  background: var(--surface);
+  border-block: 1px solid var(--rule);
+}
+.sectionInk {
+  background: var(--ink-block);
+  color: var(--on-ink);
+}
+.sectionInk .h2 { color: var(--on-ink); }
+
+@media (min-width: 900px) {
+  .section { padding-block: 120px; }
+}
+
+/* Bloc final : il suit la FAQ, sans double marge. */
+.sectionTight { padding-top: 0; }
+
+.sectionHead { max-width: 40rem; }
+
+.inlineLink {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--chalk);
+  text-underline-offset: 3px;
+}
+.inlineLink:hover { color: var(--chalk); }
+
+.sectionHeadRow {
+  display: grid;
+  gap: 16px;
+  align-items: end;
+}
+.sectionHeadRow > .body { max-width: 30rem; margin: 0; }
+@media (min-width: 900px) {
+  .sectionHeadRow { grid-template-columns: 1fr 1fr; gap: 64px; }
+  .sectionHeadRow > .body { justify-self: end; }
+}
+
+/* Photos : coins nets, légère retenue en thème sombre. */
+.photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--r-card);
+  background: var(--indigo-bg);
+  filter: var(--photo-dim);
+}
+
+/* ── Ruban de mesure ─────────────────────────────────────────────────────── */
+/* Graduations dessinées en dégradés : courtes tous les 8 px, longues tous les
+   40 px (un centimètre). */
+
+.tape {
+  border-radius: 2px;
+  background:
+    linear-gradient(to right, var(--tape-tick) 2px, transparent 2px) 0 0 / 40px 45% repeat-x,
+    linear-gradient(to right, var(--tape-tick) 1px, transparent 1px) 0 0 / 8px 22% repeat-x,
+    var(--tape);
+}
+
+/* ── 1. Visuel principal ─────────────────────────────────────────────────── */
+
+.hero {
+  padding-block: 40px 72px;
+  overflow-x: clip;
+}
+
+.heroGrid {
+  display: grid;
+  gap: 48px;
+  align-items: center;
+}
+
+@media (min-width: 900px) {
+  .hero { padding-block: 64px 96px; }
+  .heroGrid { grid-template-columns: 1fr 1fr; gap: 72px; }
+}
+
+.nowrap { white-space: nowrap; }
+
+.keyword {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* Le trait de craie se dessine sous le mot clé. */
+.chalkStroke {
+  position: absolute;
+  left: -2%;
+  bottom: -0.14em;
+  width: 104%;
+  height: 0.22em;
+  overflow: visible;
+}
+.chalkStroke path {
+  fill: none;
+  stroke: var(--chalk);
+  stroke-width: 7;
+  stroke-linecap: butt;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.heroActions {
+  margin-top: 34px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 28px;
+}
+
+.heroVisual {
+  position: relative;
+  padding-bottom: 32px;
+}
+
+.heroPhotoFrame {
+  aspect-ratio: 4 / 5;
+  max-height: 640px;
+  width: 100%;
+  margin-left: auto;
+  max-width: 520px;
+}
+.heroPhoto { object-position: 50% 30%; }
+
+/* Le téléphone chevauche le coin bas gauche de la photo. */
+.heroVisual .heroPhone {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 150px;
+}
+@media (min-width: 900px) {
+  .heroVisual .heroPhone { width: 190px; left: -40px; }
+}
+
+/* ── Repères chiffrés ────────────────────────────────────────────────────── */
+
+.facts {
+  border-block: 1px solid var(--rule);
+  background: var(--surface);
+}
+.factsList {
+  list-style: none;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.factsList li {
+  display: grid;
+  gap: 4px;
+  padding: 24px 16px 24px 0;
+}
+.factsList li + li { padding-left: 16px; }
+.factsList li:nth-child(3) { padding-left: 0; }
+.factsList li:nth-child(-n + 2) { border-bottom: 1px solid var(--rule); }
+.factsList li:nth-child(odd) { border-right: 1px solid var(--rule); }
+
+@media (min-width: 900px) {
+  .factsList { grid-template-columns: repeat(4, 1fr); }
+  .factsList li,
+  .factsList li + li,
+  .factsList li:nth-child(3) { padding: 32px 24px; border-bottom: 0; }
+  .factsList li:first-child { padding-left: 0; }
+  .factsList li:not(:last-child) { border-right: 1px solid var(--rule); }
+}
+
+.factValue {
+  font-family: var(--font-measure);
+  font-size: clamp(22px, 1vw + 16px, 30px);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.factText { font-size: 14px; line-height: 1.45; color: var(--muted); }
+
+/* ── 2. Comment ça marche ────────────────────────────────────────────────── */
+
+.howGrid {
+  display: grid;
+  gap: 48px;
+  align-items: center;
+}
+@media (min-width: 900px) {
+  .howGrid { grid-template-columns: 1.05fr 1fr; gap: 80px; }
+}
+
+.steps {
+  list-style: none;
+  margin: 36px 0 0;
+  padding: 0;
+  display: grid;
+  border-top: 1px solid var(--rule);
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 16px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.step .body { margin-top: 6px; }
+
+.stepIndex {
+  padding-top: 3px;
+  color: var(--chalk);
+  font-size: 15px;
+}
+
+.howVisual { display: flex; justify-content: center; }
+
+/* Démonstration du ruban (components/landing/tape-demo.tsx). */
+.demo {
+  width: 100%;
+  max-width: 460px;
+  padding: 28px 0 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.demoHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-inline: 28px;
+}
+.demoLabel { font-weight: 600; color: var(--muted); }
+.demoBadge {
+  padding: 4px 10px;
+  border-radius: var(--r-button);
+  background: var(--indigo-bg);
+  color: var(--indigo);
+  font-size: 13px;
+  font-weight: 600;
+}
+.demoValue {
+  margin: 18px 0 0;
+  padding-inline: 28px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: clamp(56px, 6vw, 76px);
+  line-height: 1;
+}
+.demoValue .mono { font-size: 1em; letter-spacing: -0.05em; }
+.demoUnit { font-size: 22px; color: var(--muted); }
+.demoSub { margin: 10px 0 0; padding-inline: 28px; color: var(--muted); }
+
+.demoTapeWrap {
+  position: relative;
+  height: 88px;
+  margin-top: 28px;
+  overflow: hidden;
+  background: var(--tape);
+}
+/* La bande commence à 50 cm, posée au repère central ; elle glisse vers la
+   gauche de (mesure − 50) × 40 px. */
+.demoStrip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  background:
+    linear-gradient(to right, var(--tape-tick) 2px, transparent 2px) -1px 0 / 40px 30px repeat-x,
+    linear-gradient(to right, var(--tape-tick) 1px, transparent 1px) 0 0 / 8px 14px repeat-x;
+  will-change: transform;
+}
+.demoNumber {
+  position: absolute;
+  top: 38px;
+  transform: translateX(-50%);
+  font-family: var(--font-measure);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tape-tick);
+  font-variant-numeric: tabular-nums;
+}
+.demoMark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+  background: var(--tape-mark);
+}
+
+/* ── 3. Looks ────────────────────────────────────────────────────────────── */
+
+.looks {
+  list-style: none;
+  margin: 40px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 12px;
+}
+@media (min-width: 900px) {
+  .looks { grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .look:nth-child(even) { margin-top: 48px; }
+}
+
+.look {
+  position: relative;
+  aspect-ratio: 3 / 4;
+}
+.lookTag {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 4px 10px;
+  border-radius: var(--r-button);
+  background: rgb(11 18 38 / 0.78);
+  color: #EDE9DF;
+  font-size: 14px;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+}
+
+/* ── 4. Tissus ───────────────────────────────────────────────────────────── */
+
+.fabrics {
+  list-style: none;
+  margin: 40px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 36px;
+}
+@media (min-width: 760px) {
+  .fabrics { grid-template-columns: repeat(3, 1fr); gap: 28px; }
+}
+
+.fabric { display: grid; align-content: start; }
+.fabricPhoto {
+  aspect-ratio: 4 / 3;
+  height: auto;
+  margin-bottom: 18px;
+}
+
+/* ── 5. Histoire et livraison ────────────────────────────────────────────── */
+
+.storyGrid {
+  display: grid;
+  gap: 48px;
+  align-items: center;
+}
+@media (min-width: 900px) {
+  .storyGrid { grid-template-columns: 0.9fr 1.1fr; gap: 80px; }
+}
+
+.storyPhotoWrap { aspect-ratio: 4 / 5; max-height: 600px; }
+.storyPhoto { filter: none; }
+
+.stages {
+  list-style: none;
+  margin: 36px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: rgb(237 233 223 / 0.14);
+  border: 1px solid rgb(237 233 223 / 0.14);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.stages li {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 18px;
+  background: var(--ink-block);
+}
+.stages .mono { color: var(--tape-mark); font-size: 13px; }
+.stageTitle { font-weight: 600; }
+.stageText { font-size: 14px; line-height: 1.5; color: var(--on-ink-muted); }
+
+/* ── 6. Questions ────────────────────────────────────────────────────────── */
+
+.faqGrid {
+  display: grid;
+  gap: 40px;
+}
+@media (min-width: 900px) {
+  .faqGrid { grid-template-columns: 1fr 1.6fr; gap: 64px; align-items: start; }
+  .faqSide { position: sticky; top: 108px; }
+}
+
+.contactCard {
+  margin-top: 32px;
+  padding: 22px 24px;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--chalk);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.contactTitle { margin: 0; font-weight: 600; font-size: 17px; }
+.contactCard .body { margin-top: 4px; }
+
+.faq { border-top: 1px solid var(--rule); }
+
+.faqItem { border-bottom: 1px solid var(--rule); }
+
+.faqItem summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  padding-block: 16px;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  font-size: 17px;
+  line-height: 1.4;
+}
+.faqItem summary::-webkit-details-marker { display: none; }
+.faqItem summary:hover { color: var(--chalk); }
+
+.faqIcon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--indigo);
+  stroke-width: 2;
+  transition: transform 0.2s ease;
+}
+.faqItem[open] .faqIcon { transform: rotate(45deg); }
+
+.faqItem .body { margin: 0 0 22px; max-width: 40rem; }
+
+/* ── 7. Liste d'attente ──────────────────────────────────────────────────── */
+
+.downloadCard {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 36px;
+  padding: 72px 24px 40px;
+  border-radius: var(--r-card);
+  background: var(--indigo-bg);
+}
+@media (min-width: 900px) {
+  .downloadCard {
+    grid-template-columns: 1.4fr 1fr;
+    align-items: end;
+    padding: 88px 64px 56px;
+  }
+}
+.downloadTape {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  border-radius: 0;
+}
+.downloadText .h2 { max-width: 22ch; margin-top: 20px; }
+.downloadText .body { max-width: 34rem; }
+.downloadAction { margin-top: 24px; }
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+@media (min-width: 900px) {
+  .badges { flex-direction: column; align-items: flex-end; }
+}
+
+.badge,
+.badgePending {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.badge:hover { opacity: 0.86; }
+
+/* Badges toujours pleinement visibles, même sans lien : la mention « coming
+   soon » suffit à dire qu'ils ne sont pas encore actifs. */
+.badgeImg { display: block; height: 56px; width: auto; }
+.badgeNote {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ── Pages légales ───────────────────────────────────────────────────────── */
+
+.legal { padding-block: 56px 96px; }
+.legalBody { max-width: 44rem; }
+.legalBody .h1 { font-size: clamp(34px, 1.6vw + 24px, 46px); }
+.legalUpdated { margin: 12px 0 32px; font-size: 14px; color: var(--muted); }
+.legalBody h2 {
+  margin: 40px 0 0;
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 700;
+  font-stretch: 87.5%;
+}
+.legalBody p,
+.legalBody li { color: var(--muted); }
+.legalBody p { margin: 12px 0 0; }
+.legalBody ul { margin: 12px 0 0; padding-left: 20px; }
+.legalBody li + li { margin-top: 6px; }
+.legalBody strong { color: var(--ink); font-weight: 600; }
+.legalBody a {
+  color: var(--ink);
+  text-decoration-color: var(--chalk);
+  text-underline-offset: 3px;
+}
+
+/* ── Cadre de téléphone ──────────────────────────────────────────────────── */
+/* Coins volontairement nets : 14 px pour le cadre, 9 px pour l'écran (cadre
+   de 5 px). Pas d'encoche ni de bouton : un appareil neutre. */
+
+.phone {
+  position: relative;
+  padding: 5px;
+  border-radius: 14px;
+  background: var(--bezel);
+  box-shadow: var(--shadow);
+}
+
+.phoneScreen {
+  overflow: hidden;
+  border-radius: 9px;
+  background: #F4F6FA;
+  aspect-ratio: 1080 / 2044;
+}
+/* Recadrage bas : on masque l'en-tête, l'accroche et sa description (36 % du
+   haut) ; l'écran commence à la carte du profil de mesures. */
+.phoneCropBottom { aspect-ratio: 1080 / 1308; }
+.phoneCropBottom img { object-position: 50% 100%; }
+
+.phoneScreen img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: var(--photo-dim);
+}
+
+/* ── Pied de page ────────────────────────────────────────────────────────── */
+
+.footer {
+  border-top: 1px solid var(--rule);
+  padding-block: 56px 28px;
+}
+
+.footerGrid {
+  display: grid;
+  gap: 36px;
+}
+@media (min-width: 760px) {
+  .footerGrid { grid-template-columns: 1.4fr 1fr 1fr; }
+}
+
+.footerBrand .wordmark { font-size: 24px; }
+
+.footerTitle {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.footerList { list-style: none; margin: 0; padding: 0; }
+
+.footerLink {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--ink);
+}
+.footerLink { text-underline-offset: 4px; }
+
+.copyright {
+  margin: 40px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--rule);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* ── Mouvement ───────────────────────────────────────────────────────────── */
+/* Tout est sobre et rien ne bloque la lecture. Sans prefers-reduced-motion
+   « no-preference », rien n'est masqué ni animé. */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Apparition au défilement (voir components/landing/reveal.tsx). */
+  .root[data-js] [data-reveal] {
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .root[data-js] [data-reveal]:not([data-revealed]) {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  /* Le trait de craie se dessine sous l'accroche. */
+  .chalkStroke path {
+    stroke-dashoffset: 1;
+    animation: draw 0.7s cubic-bezier(0.3, 0, 0.2, 1) 0.35s forwards;
+  }
+
+  /* La photo apparaît, puis le téléphone glisse en place. */
+  .heroPhotoFrame { animation: rise 0.8s cubic-bezier(0.2, 0, 0, 1) both; }
+  .heroPhone { animation: rise 0.8s cubic-bezier(0.2, 0, 0, 1) 0.25s both; }
+
+  .look .photo,
+  .fabricPhoto { transition: transform 0.5s cubic-bezier(0.2, 0, 0, 1); }
+  .look:hover .photo,
+  .fabric:hover .fabricPhoto { transform: scale(1.02); }
+}
+
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px); }
+}

@@ -37,7 +37,8 @@ export function LogoMark({ size = 24, className, title }: { size?: number; class
 }
 
 /**
- * Marque + nom. Le nom est en Fraunces 600, corps ≈ 1,18 × la hauteur de la
+ * Marque + nom. Le nom est en Archivo SemiCondensed 700 (comme le mot-symbole
+ * de la landing), corps ≈ 1,18 × la hauteur de la
  * marque, séparé de 0,42 × cette hauteur. Sous 20 px, la marque seule.
  * Le vide de protection (½ hauteur de marque) est la marge `padding` du
  * conteneur : `withClearance` l'applique quand le parent ne la garantit pas.
@@ -64,12 +65,13 @@ export function Logo({
       <LogoMark size={size} title={showName ? undefined : 'Osho'} />
       {showName && (
         <span
-          className="font-semibold leading-none"
+          className="leading-none"
           style={{
             fontFamily: 'var(--font-serif)',
+            fontStretch: '87.5%',
+            fontWeight: 700,
             fontSize: nameSize,
-            // Interlettrage Fraunces selon la taille (cf. globals.css)
-            letterSpacing: nameSize >= 24 ? '-0.012em' : nameSize >= 20 ? 0 : `${0.008 * (20 - nameSize)}px`,
+            letterSpacing: '-0.01em',
           }}
         >
           Osho

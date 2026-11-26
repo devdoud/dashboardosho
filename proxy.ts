@@ -31,6 +31,18 @@ function endSession(request: NextRequest, reason: SessionEndReason | 'unauthoriz
 }
 
 export async function proxy(request: NextRequest) {
+  // La landing (/), ses pages légales et ses fichiers n'ont besoin d'aucune
+  // session : on sort avant de créer le client Supabase.
+  if (
+    request.nextUrl.pathname === '/' ||
+    request.nextUrl.pathname.startsWith('/landing/') ||
+    request.nextUrl.pathname.startsWith('/legal/') ||
+    request.nextUrl.pathname.startsWith('/opengraph-image') ||
+    request.nextUrl.pathname === '/robots.txt'
+  ) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -55,7 +67,6 @@ export async function proxy(request: NextRequest) {
   // ── Routes entièrement publiques ──────────────────────────────────────────
   // Landing page, assets, etc.
   if (
-    pathname === '/' ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/_next')
@@ -136,6 +147,6 @@ async function checkAdminRole(userId: string): Promise<boolean> {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif)$).*)',
   ],
 }
